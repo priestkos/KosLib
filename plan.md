@@ -3,7 +3,16 @@
 A small, shared ImGui style library for the PriestKos Dalamud plugin family (StripDeathroll14, Babel14, Calc14, Aetherpath, FrontlineAdvisor, …).
 It does the job RebornMaterial does for GatherBuddy Reborn (one consistent look across windows), but sized for our plugins, and with the user's Dalamud theme staying in charge.
 
-Status: **plan only**. No code yet. The first pieces to extract already exist in StripDeathroll14 (`MainWindow.Style.cs`, commit `f1c0d7f`): `Card`, `Badge`, `PhaseColor`.
+Status (2026-11-15): **M0, M1 and M3 built, plus the M2 gallery; M4 waits on the in-game check.** `Card`/`Badge` moved out of StripDeathroll14; there are 5 accent presets plus Dalamud style, the gallery, and 20 offline tests. The M2 common set is deferred, because StripDeathroll14 is the only adopter (decision 3) and §1.7 says a component goes in once two plugins need it.
+
+### Decisions (user, 2026-11-15)
+| # | Question | Answer |
+|---|---|---|
+| 1 | Licence | AGPL-3.0 |
+| 2 | Repo | Public `priestkos/KosLib` on GitHub, plus a Tower Forgejo mirror |
+| 3 | Adoption | StripDeathroll14 only, for now |
+| 4 | Presets | 5 accents (Teal, Violet, Amber, Crimson, Ocean) plus Dalamud style |
+| 5 | Go-ahead | Full plan approved. Built through a local commit in StripDeathroll14; its push and release come after the in-game check |
 
 ---
 
@@ -69,9 +78,10 @@ Custom fonts, a replacement window base class, a navigation sidebar framework, a
 
 These come from the earlier style-payload work, where 20 styles passed with these rules:
 - `ButtonHovered`/`ButtonActive` and `Tab*` = accent mixed **54–66% toward `WindowBg`**. Raw bright accents under white text drop to about 1.5:1.
-- The `Header`/`HeaderHovered`/`HeaderActive` family = mid grey `mix(Text, WindowBg, 0.5)` at alpha 0.31 / 0.75 / 0.90.
+- The `Header`/`HeaderHovered`/`HeaderActive` family = grey `mix(Text, WindowBg, 0.6)` at alpha 0.31 / 0.75 / 0.90. The test caught the earlier 0.5: it left HeaderActive at 4.22:1 under white text.
+- `CheckMark`/`SliderGrab` = the accent (darkened 45% toward `Text` on a light theme); `SliderGrabActive` = that mixed 30% toward `Text`. Tested at ≥ 3:1 against every `FrameBg` state.
 - `TableHeaderBg`/`Tab` = `mix(Text, WindowBg, 0.80–0.86)`.
-- Detect a light theme (`WindowBg` luminance > 0.5) and flip the mix direction.
+- Light themes: mixing toward the live `WindowBg` already lightens surfaces under dark text, so only the marks need a light-theme branch (`WindowBg` luminance > 0.5). Both themes are tested.
 - Pure functions: `Mix`, `Luminance`, `Contrast`, `Derive(accent, windowBg, text)`. **Unit-tested offline**: every preset over both the stock dark and a light background must keep label contrast ≥ 4.5:1 on every state surface.
 
 ---
