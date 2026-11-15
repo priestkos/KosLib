@@ -17,7 +17,25 @@ public enum KosAccent
     Amber = 3,
     Crimson = 4,
     Ocean = 5,
+    KosMos = 6, // the signature look, after the KosMos profile site: crimson to foxfire gold
 }
+
+/// <summary>
+/// The drawn extras a preset adds to KosLib's own components (cards, section headers, dots, primary buttons).
+/// Null for Dalamud style, so those components draw in plain theme colours.
+/// </summary>
+/// <param name="EdgeA">Left colour of a card's top edge line and of a section rule.</param>
+/// <param name="EdgeB">Right colour the edge line runs into (the same hue as EdgeA for the plain accents).</param>
+/// <param name="Tag">Section title text.</param>
+/// <param name="TagNumber">Section number text and the section diamond.</param>
+/// <param name="CardFill">A card's own fill, or null to keep the theme's FrameBg.</param>
+/// <param name="CardBorder">A card's frame when the caller gives no edge colour.</param>
+/// <param name="Glow">Soft halo round primary buttons and status dots.</param>
+/// <param name="Rounding">Frame/grab/tab rounding in unscaled pixels, or null to keep the theme's.</param>
+/// <param name="Primary">Idle, hovered and active fill of a primary (call-to-action) button.</param>
+internal readonly record struct KosFlair(
+    Vector4 EdgeA, Vector4 EdgeB, Vector4 Tag, Vector4 TagNumber, Vector4? CardFill, Vector4 CardBorder, bool Glow, float? Rounding,
+    (Vector4 Idle, Vector4 Hovered, Vector4 Active) Primary = default);
 
 /// <summary>The style colours a preset may change. Names match <c>ImGuiCol</c>; WindowBg and Text are never here.</summary>
 internal enum KosSlot
@@ -56,8 +74,58 @@ internal static class KosColor
         KosAccent.Amber => new(0.98f, 0.70f, 0.20f, 1),
         KosAccent.Crimson => new(0.86f, 0.20f, 0.30f, 1),
         KosAccent.Ocean => new(0.20f, 0.50f, 0.92f, 1),
+        KosAccent.KosMos => Crimson,
         _ => default,
     };
+
+    // KosMos profile site palette (assets/style.css): --crimson #ff2a44, --foxfire-gold #f5b041,
+    // .chapter-tag #ffc56a, --bg-card rgba(8, 11, 18, 0.96), --border-subtle = gold at 0.16.
+    public static readonly Vector4 Crimson = new(1f, 0.165f, 0.267f, 1);
+    public static readonly Vector4 FoxfireGold = new(0.961f, 0.690f, 0.255f, 1);
+    public static readonly Vector4 TagGold = new(1f, 0.773f, 0.416f, 1);
+    public static readonly Vector4 NightCard = new(0.031f, 0.043f, 0.071f, 0.96f);
+
+    /// <summary>A light theme is one whose window background is brighter than mid grey (so its text is dark).</summary>
+    public static bool IsLight(Vector4 windowBg) => Luminance(windowBg) > 0.5f;
+
+    /// <summary>
+    /// The drawn extras for <paramref name="accent"/> over the live theme; null for Dalamud style or an unknown value.
+    /// On a light theme every colour is darkened toward the text and the KosMos night card fill is dropped, so
+    /// nothing turns into dark-on-dark.
+    /// </summary>
+    public static KosFlair? Flair(KosAccent accent, Vector4 windowBg, Vector4 text)
+    {
+        if (accent == KosAccent.Dalamud || !Enum.IsDefined(accent)) return null;
+        var light = IsLight(windowBg);
+        var a = Accent(accent);
+        var bg = windowBg with { W = 1 };
+        Vector4 Ink(Vector4 c, float toText) => Mix(c, text, toText) with { W = 1 };
+        KosFlair f;
+        if (accent == KosAccent.KosMos)
+            f = light
+                ? new KosFlair(Ink(Crimson, 0.30f), Ink(FoxfireGold, 0.45f), Ink(Crimson, 0.45f), Ink(Crimson, 0.30f), null,
+                    Ink(FoxfireGold, 0.45f) with { W = 0.55f }, true, 6)
+                : new KosFlair(Crimson, FoxfireGold, TagGold, Crimson, NightCard, FoxfireGold with { W = 0.28f }, true, 6);
+        // Light: the number at 0.40 toward the text left Amber at 4.16:1, so title and number both take 0.50.
+        else
+            f = light
+                ? new KosFlair(Ink(a, 0.30f), Ink(a, 0.30f) with { W = 0.25f }, Ink(a, 0.50f), Ink(a, 0.50f), null, Ink(a, 0.30f) with { W = 0.55f }, false, null)
+                : new KosFlair(a, Ink(a, 0.35f) with { W = 0.25f }, Ink(a, 0.35f), Ink(a, 0.15f), null, a with { W = 0.40f }, false, null);
+        return f with { Primary = PrimaryFill(a, bg, text) };
+    }
+
+    /// <summary>
+    /// The brightest accent fill that keeps the label at 4.5:1: step from the raw accent toward the window background
+    /// until the label passes. Hovered is that fill; idle and active sit a little further toward the background.
+    /// The tests check all three states on both test themes (the step alone doesn't prove the other two).
+    /// </summary>
+    public static (Vector4 Idle, Vector4 Hovered, Vector4 Active) PrimaryFill(Vector4 accent, Vector4 windowBg, Vector4 text)
+    {
+        var bg = windowBg with { W = 1 };
+        var t = 0f;
+        while (t < 0.9f && Contrast(text, Mix(accent, bg, t) with { W = 1 }) < 4.6f) t += 0.02f;
+        return (Mix(accent, bg, t + 0.08f) with { W = 1 }, Mix(accent, bg, t) with { W = 1 }, Mix(accent, bg, t + 0.14f) with { W = 1 });
+    }
 
     /// <summary>
     /// The colours a preset pushes over the live <paramref name="windowBg"/> and <paramref name="text"/>. Empty for
@@ -73,7 +141,8 @@ internal static class KosColor
         var grey = Mix(text, bg, 0.6f); // 0.5 left HeaderActive at 4.22:1 under white text
         var tab = Mix(text, bg, 0.83f) with { W = 1 };
         // A light theme (dark text) needs the marks darker than the accent to stand out from a pale frame.
-        var mark = Luminance(bg) > 0.5f ? Mix(a, text, 0.45f) with { W = 1 } : a;
+        // KosMos marks are foxfire gold on a dark theme, like the site's badge dots.
+        var mark = IsLight(bg) ? Mix(a, text, 0.45f) with { W = 1 } : accent == KosAccent.KosMos ? FoxfireGold : a;
         return
         [
             (KosSlot.Button, Solid(0.66f)),

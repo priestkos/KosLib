@@ -1,7 +1,7 @@
 # KosLib
 
-A small shared ImGui style library for the PriestKos Dalamud plugins: framed cards, badges and optional window accent
-presets, with the user's own Dalamud theme left in charge.
+A small shared ImGui style library for the PriestKos Dalamud plugins: cards, section headers, badges, joined toggles and
+optional window presets (among them **KosMos**, after the K'os Mos profile site), with the user's own Dalamud theme left in charge.
 
 `source-included` · Dalamud API 15 · .NET 10 · AGPL-3.0
 
@@ -14,16 +14,30 @@ presets, with the user's own Dalamud theme left in charge.
   without a second frame instead of nesting the channel split (which ImGui asserts on).
 - **`Kos.Badge(text, color)`**: a pill with dark text on a solid semantic colour, one text line tall so `SameLine` text
   stays aligned.
-- **`KosTheme.Push(accent)`**: an accent preset for one window. `using var _ = KosTheme.Push(config.Accent);` at the top
-  of `Draw()` pushes the colours and pops them at the end of the scope. Five accents (Teal, Violet, Amber, Crimson, Ocean)
-  plus **Dalamud style**, the default, which pushes nothing.
+- **`Kos.Section(title, number?)`**: a section header, a drawn diamond, `01 / TITLE` in capitals and a rule to the
+  right edge. It uses the monospaced font when the host sets `Kos.Mono = UiBuilder.MonoFontHandle`.
+- **`Kos.Segmented(id, ref index, options)`**: 2–4 joined toggle buttons for one choice, in place of a radio-button row.
+- **`Kos.KeyValue(label, value)`**: a read-out row, muted label on the left and the value right-aligned.
+- **`Kos.Callout(text, color)`**: wrapped text with a coloured bar down its left edge, for alerts and notes.
+- **`Kos.Dot(color)`** and **`Kos.Pips(filled, total, color)`**: drawn status marks (a draw-list overload of `Pips`
+  serves custom widgets).
+- **`Kos.IconButton`** / **`Kos.PrimaryButton`**: a Font Awesome button whose tooltip also shows while it's disabled,
+  and the accent-filled main action of a view.
+- **`Kos.HelpMarker(text)`**, **`Kos.EmptyState(text)`**: a `(?)` with a wrapped tooltip; centred muted text for an empty list.
+- **`KosTheme.Push(accent)`**: a preset for one window. `using var _ = KosTheme.Push(config.Accent);` at the top of
+  `Draw()` pushes it and pops it at the end of the scope. **Dalamud style** (the default) pushes nothing. Five accents
+  (Teal, Violet, Amber, Crimson, Ocean) colour the controls and give KosLib's own components an accent edge. **KosMos**
+  is the signature look, taken from the profile site's stylesheet: crimson controls, foxfire-gold checkmarks and section
+  tags, a crimson-to-gold line along the top of each card, night-blue card fills, a glow on the primary button, and
+  6 px frame rounding.
 - **`KosGallery.Draw()`**: every component in every state and every preset, for the in-game visual check. The host plugin
   calls it from its own debug section.
 
 ### What it is not meant to do
 
-- Replace the user's theme: a preset changes only `Button*`, `Tab*`, `Header*`, `CheckMark`, `SliderGrab*` and `FrameBg*`,
-  never `WindowBg` or `Text`, and only inside the window that pushes it.
+- Replace the user's theme: a preset changes only `Button*`, `Tab*`, `Header*`, `CheckMark`, `SliderGrab*` and `FrameBg*`
+  (and, for KosMos only, frame/grab/tab rounding), never `WindowBg` or `Text`, and only inside the window that pushes it.
+  KosMos's night card fill is drawn by `Kos.Card` itself, and only on a dark theme.
 - Touch the game: no hooks, signatures, `ClientStructs`, IPC or game state. Pure UI.
 - Ship fonts, textures, a window base class or a navigation framework.
 - Register commands. Each plugin carries its own copy, so two plugins registering the same command would collide.
@@ -67,17 +81,20 @@ type is `internal`. `KosAccent` values are saved as numbers, so they are pinned 
 dotnet test tests/KosLib.Tests/KosLib.Tests.csproj -c Release
 ```
 
-20 xUnit checks on the pure colour code (`src/KosColor.cs`, compiled without Dalamud). Every preset is checked over
+44 xUnit checks on the pure colour code (`src/KosColor.cs`, compiled without Dalamud). Every preset is checked over
 Dalamud Standard and ImGui's stock light style:
 
-- Dalamud style (and an unknown value) derives an empty list, so it pushes nothing.
-- Text keeps at least 4.5:1 contrast on every button, tab, header and frame state.
+- Dalamud style (and an unknown value) derives an empty list and no flair, so it pushes and draws nothing extra.
+- Text keeps at least 4.5:1 contrast on every button, tab, header and frame state, and on all three primary-button states.
+- Section titles and numbers keep at least 4.5:1 on the window and on a card.
+- A card fill only ever raises text contrast (and keeps it at 7:1 or more); only KosMos on a dark theme has one.
 - Checkmarks and slider grabs keep at least 3:1 against every frame state.
 - Every slot is derived exactly once, and none is `WindowBg` or `Text`.
+- KosMos uses the site's crimson, foxfire gold and tag gold.
 - The contrast and compositing maths match WCAG reference points.
 
-The ImGui-drawing parts (`Kos.cs`, `KosTheme.cs`, `KosGallery.cs`) can't run outside the game. They are checked by
-building an adopting plugin, and visually through the gallery in game.
+The ImGui-drawing parts (`Kos.cs`, `KosWidgets.cs`, `KosTheme.cs`, `KosGallery.cs`) can't run outside the game. They
+are checked by building an adopting plugin, and visually through the gallery in game.
 
 ## Limits
 
@@ -93,8 +110,9 @@ building an adopting plugin, and visually through the gallery in game.
 | Path | What |
 |---|---|
 | `src/Kos.cs` | `Card`, `Badge` |
-| `src/KosColor.cs` | `KosAccent`, colour maths and preset derivation (pure) |
-| `src/KosTheme.cs` | `KosTheme.Push`, `Label`, the slot → `ImGuiCol` map |
+| `src/KosWidgets.cs` | `Section`, `Segmented`, `KeyValue`, `Callout`, `Dot`, `Pips`, `IconButton`, `PrimaryButton`, `HelpMarker`, `EmptyState`, `Mono` |
+| `src/KosColor.cs` | `KosAccent`, `KosFlair`, colour maths, preset and flair derivation (pure) |
+| `src/KosTheme.cs` | `KosTheme.Push` (and the active `Flair`), `Label`, the slot → `ImGuiCol` map |
 | `src/KosGallery.cs` | The in-game gallery |
 | `tests/KosLib.Tests/` | xUnit tests for `KosColor.cs` |
 | `plan.md` | Design plan and milestones |

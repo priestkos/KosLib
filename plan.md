@@ -3,7 +3,7 @@
 A small, shared ImGui style library for the PriestKos Dalamud plugin family (StripDeathroll14, Babel14, Calc14, Aetherpath, FrontlineAdvisor, …).
 It does the job RebornMaterial does for GatherBuddy Reborn (one consistent look across windows), but sized for our plugins, and with the user's Dalamud theme staying in charge.
 
-Status (2026-11-15): **M0, M1 and M3 built, plus the M2 gallery; M4 waits on the in-game check.** `Card`/`Badge` moved out of StripDeathroll14; there are 5 accent presets plus Dalamud style, the gallery, and 20 offline tests. The M2 common set is deferred, because StripDeathroll14 is the only adopter (decision 3) and §1.7 says a component goes in once two plugins need it.
+Status (2026-11-15, second pass): **M0, M1 and M3 pushed (StripDeathroll14 `c379f21` on GitHub); M2 built on decision 6, plus the KosMos preset; local commits wait on the in-game look check.** M2 adds `Section`, `Segmented`, `KeyValue`, `Callout`, `Dot`, `Pips`, `IconButton`, `PrimaryButton`, `HelpMarker` and `EmptyState`, and StripDeathroll14 uses all but `KeyValue`, `Dot` and `HelpMarker`. There are 44 offline tests.
 
 ### Decisions (user, 2026-11-15)
 | # | Question | Answer |
@@ -13,6 +13,23 @@ Status (2026-11-15): **M0, M1 and M3 built, plus the M2 gallery; M4 waits on the
 | 3 | Adoption | StripDeathroll14 only, for now |
 | 4 | Presets | 5 accents (Teal, Violet, Amber, Crimson, Ocean) plus Dalamud style |
 | 5 | Go-ahead | Full plan approved. Built through a local commit in StripDeathroll14; its push and release come after the in-game check |
+| 6 | Next pass | "Push it and progress to M2 and further, let us tweak the look and style", taking inspiration from other plugins and the KosMos profile site. This overrides §1.7's two-plugin rule for the M2 set. The look became a 7th preset, **KosMos** (value 6), so Dalamud style stays the default and pushes nothing |
+
+### What KosMos takes from the profile site (`priestkos/kosmos`, `assets/style.css`)
+| Site | KosLib |
+|---|---|
+| `--crimson #ff2a44`, `--foxfire-gold #f5b041` | Crimson controls; gold checkmarks and slider grabs (dark theme) |
+| `.card-edge-glow`: a 2 px top line, transparent → crimson → gold → transparent | `Kos.Card` draws the same line along its top edge |
+| `.glass-panel`: `--bg-card rgba(8, 11, 18, 0.96)`, gold border at 0.16, 16 px radius | Night card fill (dark theme only), gold border at 0.28, 8 px radius |
+| `.chapter-tag`: mono, `#ffc56a`, crimson `.tag-num` (`02 / DOSSIER`) | `Kos.Section("Dossier", "02")` in Dalamud's mono font, tag gold with a crimson number |
+| `◈` bullet | A drawn diamond (shapes over glyphs, §1.5) |
+| `.badge-dot` with a gold `box-shadow` | `Kos.Dot` with a two-ring halo |
+| Crimson pill CTA with a glow | `Kos.PrimaryButton`: accent fill stepped toward the background until the label keeps 4.5:1 (the site's white-on-#ff2a44 is about 3.7:1, below that), plus a 3-ring glow |
+| Active nav chapter: a gold outline pill | `Kos.Segmented` outlines the selected segment in tag gold |
+
+From other plugins (survey in the dalamud-plugin skill): Henchman's `Underlings` call sites show `Segmented`, `Banner`, `Dot` and `Card`, which shaped `Segmented`, `Callout` and `Dot`. GatherBuddy Reborn's RebornMaterial (one seed colour, state layers) is the model for deriving every state from one accent. Neither is a dependency.
+
+**Exceptions to §1 this pass made, on decision 6:** KosMos pushes `FrameRounding`/`GrabRounding`/`TabRounding` (6 px scaled), the only style vars a preset touches. `Kos.Card` draws its own night fill under KosMos on a dark theme. The light-theme branch drops that fill, and the tests check that the fill only ever raises text contrast. Section tags use `UiBuilder.MonoFontHandle`, Dalamud's own font: no font is built or shipped, so §3's "no custom fonts" still holds.
 
 ---
 
@@ -112,7 +129,7 @@ An ImGui assert or a mismatched Begin/End in a plugin can take the game down. So
 |---|---|---|
 | M0+M1 | `src/Kos.cs` holding `Card` + `Badge`, moved from SDR `MainWindow.Style.cs` with unchanged bodies (`private` → `internal`, explicit `using System;`, `#nullable enable`, since 7 of 13 top-level plugin csprojs don't set ImplicitUsings and 3 don't set Nullable). `PhaseLabel`/`PhaseColor` stay in SDR (game-specific). `IconButton` and `Semantic` wait for a second user (§1.7). No `tests/` until M3 brings pure code. | SDR Debug+Release 0 warnings, 46 tests green (baseline at `10b9e0d`: Release 0 warnings, 46/46 passed), user sees no change in game |
 | M0 wiring | SDR: `git submodule add https://github.com/priestkos/KosLib.git KosLib`; csproj `<Compile Remove="KosLib/**" />` + `<Compile Include="KosLib/src/**/*.cs" />` (the SDK glob would otherwise pick up `KosLib/tests` and nested `obj/`); `submodules: true` on the checkouts in `build.yml` and `release.yml`; `sync_dalamud_repos.py` runs `git submodule update --init` after a fast-forward, otherwise local builds compile a stale KosLib. Push order: KosLib commit public first, then the plugin, or CI checkout fails. | |
-| M2 | Common set (§3, M2) as needed, plus the gallery | Second plugin adopts at least 2 components |
+| M2 | Common set (§3, M2) as needed, plus the gallery | Built on decision 6 (originally: second plugin adopts at least 2 components). StripDeathroll14 Release 0 warnings, 46/46 tests; KosLib 44/44; the user's in-game look check is still to come |
 | M3 | Accent presets plus contrast tests | All presets ≥ 4.5:1 offline; "Dalamud style" pushes nothing (`Derive` is pure and returns the `(ImGuiCol, colour)` list that `Push` loops over, so the test asserts that the list is empty, with no ImGui hook); user picks in game |
 | M4 | Adoption notes for the family; release-workflow `submodules: true` in each adopting repo | One adopting plugin released through PlogonYes with KosLib inside |
 

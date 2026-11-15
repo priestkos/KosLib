@@ -36,9 +36,9 @@ public class KosColorTests
     }
 
     [Fact]
-    public void FivePresetsWithPinnedValues()
+    public void PresetsKeepTheirPinnedValues()
     {
-        Assert.Equal([0, 1, 2, 3, 4, 5], Enum.GetValues<KosAccent>().Select(a => (int)a));
+        Assert.Equal([0, 1, 2, 3, 4, 5, 6], Enum.GetValues<KosAccent>().Select(a => (int)a));
     }
 
     [Fact]

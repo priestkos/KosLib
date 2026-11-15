@@ -9,7 +9,7 @@ namespace KosLib;
 
 // Small drawn pieces: a framed card and a badge. Colours come from the live style or the caller (semantic
 // ImGuiColors), so the user's Dalamud theme stays in charge; nothing is pushed window-wide.
-internal static class Kos
+internal static partial class Kos
 {
     private static int cardDepth; // ImGui draws on one thread; a second ChannelsSplit on the same draw list asserts
 
@@ -31,6 +31,8 @@ internal static class Kos
     /// Full-width framed panel round whatever body draws. The frame goes on a background channel after the body
     /// is laid out. A card inside a card draws its body without a frame instead of nesting the channel split.
     /// Tables use their own splitter, so a table in the body should be safe: confirm in the gallery before relying on it.
+    /// Under a preset with flair the card gets more padding, a gradient line along its top edge and (KosMos on a dark
+    /// theme) its own night fill; under Dalamud style it is drawn exactly as before.
     /// </summary>
     public static void Card(string id, Vector4? edge, Action body)
     {
@@ -40,8 +42,9 @@ internal static class Kos
             return;
         }
 
+        var flair = KosTheme.Flair;
         var scale = ImGuiHelpers.GlobalScale;
-        var pad = new Vector2(8, 6) * scale;
+        var pad = (flair is null ? new Vector2(8, 6) : new Vector2(12, 9)) * scale;
         var style = ImGui.GetStyle();
         var draw = ImGui.GetWindowDrawList();
         var start = ImGui.GetCursorScreenPos();
@@ -59,9 +62,21 @@ internal static class Kos
             end = ImGui.GetItemRectMax();
             draw.ChannelsSetCurrent(0);
             var max = new Vector2(start.X + width, end.Y + pad.Y);
-            var rounding = MathF.Max(style.FrameRounding, 4 * scale);
-            draw.AddRectFilled(start, max, ImGui.GetColorU32(ImGuiCol.FrameBg, 0.6f), rounding);
-            draw.AddRect(start, max, edge is { } e ? ImGui.GetColorU32(e with { W = 0.7f }) : ImGui.GetColorU32(ImGuiCol.Border), rounding, ImDrawFlags.None, scale);
+            if (flair is not { } f)
+            {
+                var rounding = MathF.Max(style.FrameRounding, 4 * scale);
+                draw.AddRectFilled(start, max, ImGui.GetColorU32(ImGuiCol.FrameBg, 0.6f), rounding);
+                draw.AddRect(start, max, edge is { } e ? ImGui.GetColorU32(e with { W = 0.7f }) : ImGui.GetColorU32(ImGuiCol.Border), rounding, ImDrawFlags.None, scale);
+            }
+            else
+            {
+                var rounding = MathF.Max(style.FrameRounding, 8 * scale);
+                draw.AddRectFilled(start, max, f.CardFill is { } fill ? ImGui.GetColorU32(fill) : ImGui.GetColorU32(ImGuiCol.FrameBg, 0.6f), rounding);
+                draw.AddRect(start, max, ImGui.GetColorU32(edge is { } e ? e with { W = 0.45f } : f.CardBorder), rounding, ImDrawFlags.None, scale);
+                // The site's .card-edge-glow: a 2 px line along the top, fading in from and out to nothing at the ends.
+                var (a, b) = edge is { } c ? (c, c) : (f.EdgeA, f.EdgeB);
+                EdgeLine(draw, new Vector2(start.X + rounding, start.Y), max.X - start.X - 2 * rounding, 2 * scale, a, b);
+            }
         }
         finally
         {

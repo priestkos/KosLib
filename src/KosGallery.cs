@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface;
 using Dalamud.Interface.Colors;
 using Dalamud.Interface.Utility.Raii;
 
@@ -13,58 +14,29 @@ internal static class KosGallery
     private static bool tableInCard;
     private static bool check = true;
     private static float slider = 0.4f;
+    private static int segment;
+    private static KosAccent preview = KosAccent.KosMos;
 
     public static void Draw()
     {
-        foreach (var (name, color) in new[]
+        ImGui.SetNextItemWidth(160);
+        using (var combo = ImRaii.Combo("Preview preset", KosTheme.Label(preview)))
         {
-            ("Ok", ImGuiColors.HealerGreen), ("Warn", ImGuiColors.DalamudYellow), ("Danger", ImGuiColors.DalamudRed),
-            ("Info", ImGuiColors.TankBlue), ("Muted", ImGuiColors.DalamudGrey), ("Debug", ImGuiColors.DalamudOrange),
-        })
-        {
-            Kos.Badge(name, color);
-            ImGui.SameLine();
-        }
-        ImGui.NewLine();
-
-        Kos.Card("plain", null, () => ImGui.TextUnformatted("Card with the theme's border."));
-        Kos.Card("edged", ImGuiColors.HealerGreen, () =>
-        {
-            Kos.Badge("Turns", ImGuiColors.HealerGreen);
-            ImGui.SameLine();
-            ImGui.TextUnformatted("Card with a coloured edge and a badge.");
-        });
-        Kos.Card("outer", ImGuiColors.TankBlue, () =>
-        {
-            ImGui.TextUnformatted("Outer card.");
-            Kos.Card("inner", ImGuiColors.DalamudRed, () => ImGui.TextUnformatted("Card inside a card: drawn without its own frame."));
-        });
-
-        ImGui.Checkbox("Table inside a card (not yet confirmed in game: tick it once, then look in /xllog for an ImGui assert)", ref tableInCard);
-        if (tableInCard)
-        {
-            Kos.Card("table", null, () =>
-            {
-                using var table = ImRaii.Table("##kostable", 2, ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerH);
-                if (!table) return;
-                ImGui.TableSetupColumn("Name");
-                ImGui.TableSetupColumn("Value");
-                ImGui.TableHeadersRow();
-                for (var i = 1; i <= 3; i++)
-                {
-                    ImGui.TableNextRow();
-                    ImGui.TableNextColumn(); ImGui.TextUnformatted($"Row {i}");
-                    ImGui.TableNextColumn(); ImGui.TextUnformatted((i * 111).ToString());
-                }
-            });
+            if (combo)
+                foreach (var a in Enum.GetValues<KosAccent>())
+                    if (ImGui.Selectable(KosTheme.Label(a), a == preview)) preview = a;
         }
 
-        ImGui.Separator();
+        using (KosTheme.Push(preview)) Components();
+
+        Kos.Section("Every preset", "03");
         foreach (var accent in Enum.GetValues<KosAccent>())
         {
             using var id = ImRaii.PushId((int)accent);
-            using var colors = KosTheme.Push(accent);
+            using var theme = KosTheme.Push(accent);
             ImGui.TextUnformatted(accent == KosAccent.Dalamud ? "Dalamud style (pushes nothing, so this row shows the host window's own look)" : KosTheme.Label(accent));
+            Kos.PrimaryButton(FontAwesomeIcon.Play, "Primary");
+            ImGui.SameLine();
             ImGui.Button("Button");
             ImGui.SameLine();
             ImGui.Checkbox("Check", ref check);
@@ -77,5 +49,74 @@ internal static class KosGallery
             using (var t = ImRaii.TabItem("Tab one")) if (t) ImGui.TextDisabled("Tab one body.");
             using (var t = ImRaii.TabItem("Tab two")) if (t) ImGui.TextDisabled("Tab two body.");
         }
+    }
+
+    private static void Components()
+    {
+        Kos.Section("Badges and marks", "01");
+        foreach (var (name, color) in new[]
+        {
+            ("Ok", ImGuiColors.HealerGreen), ("Warn", ImGuiColors.DalamudYellow), ("Danger", ImGuiColors.DalamudRed),
+            ("Info", ImGuiColors.TankBlue), ("Muted", ImGuiColors.DalamudGrey), ("Debug", ImGuiColors.DalamudOrange),
+        })
+        {
+            Kos.Badge(name, color);
+            ImGui.SameLine();
+        }
+        ImGui.NewLine();
+        Kos.Dot(ImGuiColors.HealerGreen);
+        ImGui.SameLine();
+        ImGui.TextUnformatted("Status dot");
+        ImGui.SameLine();
+        Kos.Pips(2, 3, ImGuiColors.DalamudYellow);
+        ImGui.SameLine();
+        ImGui.TextUnformatted("Pips 2 of 3");
+        Kos.HelpMarker("A help marker: hover for a wrapped tooltip.");
+        Kos.Segmented("seg", ref segment, "Circle", "List", "Both");
+        ImGui.SameLine();
+        ImGui.TextDisabled($"Segmented: {segment}");
+        Kos.PrimaryButton(FontAwesomeIcon.Play, "Primary", "The one main action of a view.");
+        ImGui.SameLine();
+        Kos.IconButton(FontAwesomeIcon.Dice, "Icon button", "Tooltip shows even when disabled.");
+        ImGui.SameLine();
+        using (ImRaii.Disabled()) Kos.PrimaryButton(FontAwesomeIcon.Ban, "Disabled", "Disabled primary.");
+
+        Kos.Section("Cards", "02");
+        Kos.Card("plain", null, () =>
+        {
+            ImGui.TextUnformatted("Card with no edge colour: the preset's own edge.");
+            Kos.KeyValue("Race", "Kitsune");
+            Kos.KeyValue("Disciplines", "Courtesan, Mercenary, Bard", ImGuiColors.DalamudYellow);
+        });
+        Kos.Card("edged", ImGuiColors.HealerGreen, () =>
+        {
+            Kos.Badge("Turns", ImGuiColors.HealerGreen);
+            ImGui.SameLine();
+            ImGui.TextUnformatted("Card with a coloured edge and a badge.");
+            Kos.Callout("A callout: wrapped text with a bar down its left edge, for alerts and notes.", ImGuiColors.DalamudRed);
+        });
+        Kos.Card("outer", ImGuiColors.TankBlue, () =>
+        {
+            ImGui.TextUnformatted("Outer card.");
+            Kos.Card("inner", ImGuiColors.DalamudRed, () => ImGui.TextUnformatted("Card inside a card: drawn without its own frame."));
+        });
+        Kos.EmptyState("Empty state: nothing here yet.");
+
+        ImGui.Checkbox("Table inside a card (not yet confirmed in game: tick it once, then look in /xllog for an ImGui assert)", ref tableInCard);
+        if (!tableInCard) return;
+        Kos.Card("table", null, () =>
+        {
+            using var table = ImRaii.Table("##kostable", 2, ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerH);
+            if (!table) return;
+            ImGui.TableSetupColumn("Name");
+            ImGui.TableSetupColumn("Value");
+            ImGui.TableHeadersRow();
+            for (var i = 1; i <= 3; i++)
+            {
+                ImGui.TableNextRow();
+                ImGui.TableNextColumn(); ImGui.TextUnformatted($"Row {i}");
+                ImGui.TableNextColumn(); ImGui.TextUnformatted((i * 111).ToString());
+            }
+        });
     }
 }
