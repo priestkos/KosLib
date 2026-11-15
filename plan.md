@@ -81,7 +81,7 @@ These come from the earlier style-payload work, where 20 styles passed with thes
 An ImGui assert or a mismatched Begin/End in a plugin can take the game down. So:
 1. Every `Begin*` that returns a bool goes through `ImRaii`, or through a `try/finally` that always calls the matching `End*`/`Merge`.
 2. No list mutation while drawing it. Components return an action or a bool, and callers apply changes after the loop. That's the pattern already used in StripDeathroll14.
-3. `Card` tracks "inside a card" in a `[ThreadStatic]` depth counter. `Kos.Table` (a thin `ImRaii.Table` wrapper) refuses with a visible red line, rather than asserting, when called inside a card.
+3. ~~`Card` tracks "inside a card" in a `[ThreadStatic]` depth counter; `Kos.Table` refuses inside a card.~~ **Probably not needed (review 2026-11-15, from reading the source, not tested):** the ImGui assert is per `ImDrawListSplitter` instance (`imgui_draw.cpp`: "Nested channel splitting is not supported. Please use separate instances"), and tables split with their **own** instance (`imgui_tables.cpp`: `table->DrawSplitter = &table->TempData->DrawSplitter`). `imgui.h` says separate instances can be stacked. Read from upstream `docking` 1.93.1 WIP; Dalamud's pinned copy wasn't checked. The gallery shows a table inside a card; if that holds in game, drop the counter and the "no tables" rule from `Card`.
 4. Any `SetCursorScreenPos` is followed by an item (`Dummy`) before the window ends, or ImGui's boundary check asserts.
 5. Unique IDs: every component takes an `id` or pushes the label's `##` part. Component internals use `PushId` so two cards with the same title don't collide.
 6. No allocations in hot paths beyond what string formatting already costs. Components run every frame.
@@ -91,7 +91,7 @@ An ImGui assert or a mismatched Begin/End in a plugin can take the game down. So
 ## 6. Testing and verification
 
 - **Offline (CI):** an xUnit project for the pure parts: colour maths, preset derivation and contrast (§4), plus layout maths (pip spacing, label anchoring). Components that call ImGui can't run offline; we say so instead of mocking ImGui.
-- **Gallery window:** `/koslib`, shown only when the host plugin is in debug mode. It shows every component in every state and every preset. That's the in-game visual check. The user judges it in game, and a rejected look rolls back to the last approved commit.
+- **Gallery:** `KosGallery.Draw()`, which the host plugin calls from its own debug tab. KosLib doesn't register a `/koslib` command, because every adopting plugin carries its own copy and the second one to register the same command would collide. It shows every component in every state and every preset. That's the in-game visual check. The user judges it in game, and a rejected look rolls back to the last approved commit.
 - Every adopting plugin keeps its own `dotnet build -c Release` (0 warnings) and its test suite green after a submodule bump.
 
 ---
@@ -100,17 +100,17 @@ An ImGui assert or a mismatched Begin/End in a plugin can take the game down. So
 
 | # | Deliverable | Done when |
 |---|---|---|
-| M0 | Repo skeleton: `src/`, `tests/`, README, licence, `KosLib.projitems` or a glob `<Compile Include>` snippet | Builds inside StripDeathroll14 as a submodule with no behaviour change |
-| M1 | `Card`, `Badge`, `IconButton`, `Semantic` moved out of StripDeathroll14 | SDR builds and tests green; in-game look unchanged (user check) |
+| M0+M1 | `src/Kos.cs` holding `Card` + `Badge`, moved from SDR `MainWindow.Style.cs` with unchanged bodies (`private` → `internal`, explicit `using System;`, `#nullable enable`, since 7 of 13 top-level plugin csprojs don't set ImplicitUsings and 3 don't set Nullable). `PhaseLabel`/`PhaseColor` stay in SDR (game-specific). `IconButton` and `Semantic` wait for a second user (§1.7). No `tests/` until M3 brings pure code. | SDR Debug+Release 0 warnings, 46 tests green (baseline at `10b9e0d`: Release 0 warnings, 46/46 passed), user sees no change in game |
+| M0 wiring | SDR: `git submodule add https://github.com/priestkos/KosLib.git KosLib`; csproj `<Compile Remove="KosLib/**" />` + `<Compile Include="KosLib/src/**/*.cs" />` (the SDK glob would otherwise pick up `KosLib/tests` and nested `obj/`); `submodules: true` on the checkouts in `build.yml` and `release.yml`; `sync_dalamud_repos.py` runs `git submodule update --init` after a fast-forward, otherwise local builds compile a stale KosLib. Push order: KosLib commit public first, then the plugin, or CI checkout fails. | |
 | M2 | Common set (§3, M2) as needed, plus the gallery | Second plugin adopts at least 2 components |
-| M3 | Accent presets plus contrast tests | All presets ≥ 4.5:1 offline; "Dalamud style" pushes nothing (verified by a push-count test hook); user picks in game |
+| M3 | Accent presets plus contrast tests | All presets ≥ 4.5:1 offline; "Dalamud style" pushes nothing (`Derive` is pure and returns the `(ImGuiCol, colour)` list that `Push` loops over, so the test asserts that the list is empty, with no ImGui hook); user picks in game |
 | M4 | Adoption notes for the family; release-workflow `submodules: true` in each adopting repo | One adopting plugin released through PlogonYes with KosLib inside |
 
 ---
 
 ## 8. Open questions for the user
 
-1. **Licence:** MIT or AGPL-3.0? The family is mixed: NameplateOffset is MIT and InventorySearchBar is AGPL. With source inclusion, KosLib's licence applies inside each plugin.
+1. **Licence:** MIT or AGPL-3.0? Checked 2026-11-15: only 2 of 18 repos carry a LICENSE file, NameplateOffset (MIT) and InventorySearchBar (AGPL, a fork). The rest carry none. With source inclusion, KosLib's licence applies inside each plugin, so AGPL would force AGPL onto every adopter. MIT can sit inside either.
 2. **Repo:** a public `priestkos/KosLib` on GitHub (needed for Actions checkout), with the Tower Forgejo as a mirror?
-3. **Adoption order** after StripDeathroll14: which plugin next? Babel14 is stock-styled by choice. Aetherpath and FrontlineAdvisor push their own colours today (`PushColor` / `static readonly Vector4` found in their window files).
+3. **Adoption order** after StripDeathroll14: which plugin next? Babel14 is stock-styled by choice. Count of `PushColor|PushStyle|static readonly Vector4` matches in `*.cs` (2026-11-15): FrontlineAdvisor 31, GateAlert 24, Aetherpath 12, InventorySearchBar 11 (fork), huntalerts 146 (upstream fork, leave alone). Every other repo has 0.
 4. **Accent preset names and count** for M3: keep 5–7 like GatherBuddy Reborn, or fewer?
