@@ -115,4 +115,101 @@ internal static partial class MaterialKos
         draw.AddText(new Vector2(x, min.Y + (h - text.Y) / 2), ImGui.GetColorU32(ink), shown);
         return changed;
     }
+
+    /// <summary>Off: GlowButton's light rests instead of travelling round the edge when nobody points at it.</summary>
+    public static bool Motion { get; set; } = true;
+
+    /// <summary>
+    /// A pill button on the container colour whose edge catches a light: it sits nearest the mouse while hovered, with a
+    /// soft wash inside, and travels slowly round the edge at rest. Returns true when clicked.
+    /// </summary>
+    public static bool GlowButton(string label)
+    {
+        const int n = 64; // edge pieces
+        var text = ImGui.CalcTextSize(Shown(label));
+        var h = ImGui.GetFrameHeight();
+        var padX = MathF.Round(h * 0.6f);
+        var size = new Vector2(text.X + 2 * padX, h);
+        var min = ImGui.GetCursorScreenPos();
+        var clicked = ImGui.InvisibleButton(label, size);
+        var hovered = ImGui.IsItemHovered();
+        var held = ImGui.IsItemActive();
+
+        var draw = ImGui.GetWindowDrawList();
+        var scale = ImGuiHelpers.GlobalScale;
+        var r = h / 2;
+        var primary = Col(ImGuiCol.CheckMark) with { W = 1 };
+        var ink = Col(ImGuiCol.Text);
+        draw.AddRectFilled(min, min + size, ImGui.GetColorU32(ImGuiCol.Button), r);
+        var mouse = ImGui.GetMousePos();
+        if (hovered) // the wash: rings on the pill's middle line, never outside its ends
+        {
+            var c = new Vector2(Math.Clamp(mouse.X, min.X + r, min.X + size.X - r), min.Y + r);
+            foreach (var k in new[] { 1f, 0.7f, 0.4f }) draw.AddCircleFilled(c, r * k, ImGui.GetColorU32(primary with { W = held ? 0.09f : 0.06f }), 32);
+        }
+        draw.AddRect(min, min + size, ImGui.GetColorU32(ImGuiCol.Border), r, ImDrawFlags.None, scale);
+
+        var light = Motion ? (float)(ImGui.GetTime() % 6 / 6) : 0; // one lap in 6 s
+        if (hovered)
+        {
+            var best = float.MaxValue;
+            for (var k = 0; k < n; k++)
+            {
+                var d = Vector2.DistanceSquared(PillPoint(min, size, (float)k / n), mouse);
+                if (d < best) (best, light) = (d, (float)k / n);
+            }
+        }
+        var lit = hovered ? 1f : 0.55f;
+        for (var k = 0; k < n; k++)
+        {
+            float u0 = (float)k / n, u1 = (float)(k + 1) / n;
+            var off = MathF.Abs((u0 + u1) / 2 - light);
+            off = MathF.Min(off, 1 - off); // round the edge either way
+            var a = MathF.Max(0, 1 - off / 0.18f); // the light covers about a third of the edge
+            if (a <= 0) continue;
+            draw.AddLine(PillPoint(min, size, u0), PillPoint(min, size, u1), ImGui.GetColorU32(primary with { W = a * a * lit }), 1.5f * scale);
+        }
+        draw.AddText(min + new Vector2(padX, (h - text.Y) / 2), ImGui.GetColorU32(ink), Shown(label));
+        return clicked;
+    }
+
+    /// <summary>
+    /// Slide to confirm, for actions that must not happen by accident: drag the knob all the way across, or hold
+    /// Space/Enter on it for a second. Let go early and it springs back. True on the frame it confirms.
+    /// </summary>
+    public static bool Slide(string label, float width = 0)
+    {
+        var shown = Shown(label);
+        var text = ImGui.CalcTextSize(shown);
+        var h = ImGui.GetFrameHeight();
+        var size = new Vector2(width > 0 ? width : MathF.Max(text.X + 3 * h, 8 * h), h);
+        var min = ImGui.GetCursorScreenPos();
+        var id = ImGui.GetID(label);
+        var store = ImGui.GetStateStorage();
+        ImGui.InvisibleButton(label, size);
+        var active = ImGui.IsItemActive();
+        var mouseHeld = active && ImGui.IsMouseDown(ImGuiMouseButton.Left);
+        var travel = size.X - h;
+        if (ImGui.IsItemActivated()) store.SetFloat(id + 1, Math.Max(store.GetFloat(id), 0)); // where the knob was when grabbed
+        float? drag = mouseHeld ? store.GetFloat(id + 1) + ImGui.GetMouseDragDelta(ImGuiMouseButton.Left, 0).X / travel : null;
+        var (knob, confirmed) = SlideStep(store.GetFloat(id), ImGui.GetIO().DeltaTime, drag, active && !mouseHeld);
+        store.SetFloat(id, knob);
+        if (ImGui.IsItemHovered() && !active) ImGui.SetMouseCursor(ImGuiMouseCursor.ResizeEw);
+
+        var draw = ImGui.GetWindowDrawList();
+        var scale = ImGuiHelpers.GlobalScale;
+        var r = h / 2;
+        var at = knob < 0 ? 1 : knob;
+        var primary = Col(ImGuiCol.CheckMark) with { W = 1 };
+        var centre = new Vector2(min.X + r + at * travel, min.Y + r);
+        draw.AddRectFilled(min, min + size, ImGui.GetColorU32(ImGuiCol.FrameBg), r);
+        draw.AddRectFilled(min, new Vector2(centre.X + r, min.Y + h), ImGui.GetColorU32(ImGuiCol.Button), r); // the trail
+        draw.AddText(new Vector2(min.X + h + (travel - text.X) / 2, min.Y + (h - text.Y) / 2), ImGui.GetColorU32(ImGuiCol.Text, 1 - 0.8f * at), shown);
+        draw.AddCircleFilled(centre, r - 2 * scale, ImGui.GetColorU32(primary), 32);
+        var u = r * 0.28f; // a drawn chevron, never a glyph
+        var c = ImGui.GetColorU32(OnColor(primary));
+        draw.AddLine(centre + new Vector2(-u * 0.5f, -u), centre + new Vector2(u * 0.5f, 0), c, 2 * scale);
+        draw.AddLine(centre + new Vector2(u * 0.5f, 0), centre + new Vector2(-u * 0.5f, u), c, 2 * scale);
+        return confirmed;
+    }
 }

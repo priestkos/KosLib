@@ -15,6 +15,7 @@ internal static class KosGallery
 {
     private static bool tableInCard;
     private static bool check = true;
+    private static int slid;
     private static float slider = 0.4f;
     private static int segment;
     private static bool material, chip = true;
@@ -112,6 +113,11 @@ internal static class KosGallery
         MaterialKos.Switch($"Switch##{id}", ref check);
         ImGui.SameLine();
         MaterialKos.Chip($"Chip##{id}", ref chip);
+        MaterialKos.GlowButton($"Glow button##{id}");
+        ImGui.SameLine();
+        if (MaterialKos.Slide($"Slide to confirm##{id}")) slid++;
+        ImGui.SameLine();
+        ImGui.TextDisabled($"confirmed {slid}x");
     }
 
     private static void Components()

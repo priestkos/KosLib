@@ -123,6 +123,41 @@ internal static partial class MaterialKos
         return KosColor.Contrast(black, fill with { W = 1 }) >= KosColor.Contrast(white, fill with { W = 1 }) ? black : white;
     }
 
+    // ---- Motion maths for GlowButton and Slide (pure, so the tests step them) ----------------------------------
+
+    /// <summary>
+    /// The point a fraction <paramref name="u"/> (any value: whole turns wrap) of the way round a pill's edge, clockwise
+    /// from where the top edge leaves the left end cap.
+    /// </summary>
+    public static Vector2 PillPoint(Vector2 min, Vector2 size, float u)
+    {
+        var r = MathF.Min(size.X, size.Y) / 2;
+        var flat = size.X - 2 * r; // top and bottom straights (0 for a circle)
+        var d = (u - MathF.Floor(u)) * (2 * flat + 2 * MathF.PI * r);
+        Vector2 left = new(min.X + r, min.Y + r), right = new(min.X + r + flat, min.Y + r);
+        if (d < flat) return new Vector2(left.X + d, min.Y);
+        d -= flat;
+        if (d < MathF.PI * r) return right + new Vector2(MathF.Sin(d / r), -MathF.Cos(d / r)) * r;
+        d -= MathF.PI * r;
+        if (d < flat) return new Vector2(right.X - d, min.Y + 2 * r);
+        d -= flat;
+        return left + new Vector2(-MathF.Sin(d / r), MathF.Cos(d / r)) * r;
+    }
+
+    /// <summary>
+    /// One frame of Slide's knob (0 home, 1 the far end; -1 means confirmed and waiting for the press to end). It follows
+    /// <paramref name="drag"/> while the mouse holds it, creeps on (1 s end to end) while a key holds it, and springs
+    /// home otherwise. Reaching the end confirms once: the knob stays there until the press ends, then goes home.
+    /// </summary>
+    public static (float Knob, bool Confirmed) SlideStep(float knob, float dt, float? drag, bool keyHeld)
+    {
+        const float spring = 4; // ends per second on the way home
+        var held = drag is not null || keyHeld;
+        if (knob < 0) return (held ? -1 : 1, false);
+        knob = Math.Clamp(drag ?? (keyHeld ? knob + dt : knob - dt * spring), 0, 1);
+        return knob >= 0.98f ? (-1, true) : (knob, false);
+    }
+
     // ---- CIELAB LCh (D65) --------------------------------------------------------------------------------------
 
     /// <summary>The sRGB colour at <paramref name="tone"/> (L*, 0..100), hue in degrees; chroma is lowered until it fits sRGB.</summary>
