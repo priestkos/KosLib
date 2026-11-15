@@ -165,5 +165,117 @@ internal static class KosColor
         ];
     }
 
+    // ---- Whole-window palette (opt-in) ----------------------------------------------------------------------------
+
+    /// <summary>
+    /// The opt-in whole-window palette for <paramref name="accent"/>, built over the user's live
+    /// <paramref name="windowBg"/> and <paramref name="text"/>; null for Dalamud style or an unknown value.
+    /// Surfaces keep the accent's hue at a low saturation (KosMos takes the profile site's night blue instead, so its
+    /// windows aren't red-brown). A light theme gets a light window and a dark one a dark window, the window keeps the
+    /// user's background alpha, and the component slots and flair are derived again over the new background and text.
+    /// </summary>
+    public static KosWindowPalette? Window(KosAccent accent, Vector4 windowBg, Vector4 text)
+    {
+        if (accent == KosAccent.Dalamud || !Enum.IsDefined(accent)) return null;
+        var light = IsLight(windowBg);
+        var a = Accent(accent);
+        var kosmos = accent == KosAccent.KosMos;
+        var (h, s, _) = ToHsl(kosmos ? NightCard with { W = 1 } : a);
+        var tint = MathF.Min(s, kosmos ? 0.45f : 0.30f);
+        Vector4 Surface(float l) => FromHsl(h, tint, l);
+
+        var bg = Surface(light ? 0.955f : 0.085f);
+        var ink = light ? FromHsl(h, tint * 0.6f, 0.10f) : FromHsl(h, tint * 0.5f, 0.94f);
+        var mark = light ? Mix(a, ink, 0.45f) with { W = 1 } : kosmos ? FoxfireGold : a;
+        var border = kosmos ? (light ? Mix(FoxfireGold, ink, 0.45f) with { W = 0.55f } : FoxfireGold with { W = 0.22f })
+            : light ? Mix(a, ink, 0.30f) with { W = 0.45f } : a with { W = 0.30f };
+        Vector4 Toward(Vector4 c, float t) => Mix(c, bg, t) with { W = 1 };
+        Vector4 Clear(Vector4 c) => c with { W = 0 };
+
+        (KosWindowSlot, Vector4)[] colors =
+        [
+            (KosWindowSlot.WindowBg, bg with { W = windowBg.W }),
+            (KosWindowSlot.ChildBg, Clear(bg)), // children show the window's own tint
+            (KosWindowSlot.PopupBg, Surface(light ? 0.975f : 0.11f) with { W = 0.97f }),
+            (KosWindowSlot.MenuBarBg, Surface(light ? 0.92f : 0.12f)),
+            (KosWindowSlot.TitleBg, Surface(light ? 0.90f : 0.07f)),
+            (KosWindowSlot.TitleBgActive, Toward(a, light ? 0.78f : 0.64f)),
+            (KosWindowSlot.TitleBgCollapsed, Surface(light ? 0.90f : 0.07f) with { W = 0.75f }),
+            (KosWindowSlot.Text, ink),
+            (KosWindowSlot.TextDisabled, Mix(ink, bg, light ? 0.34f : 0.42f) with { W = 1 }), // light at 0.42 was 4.10-4.25:1
+            (KosWindowSlot.TextSelectedBg, a with { W = 0.35f }),
+            (KosWindowSlot.Border, border),
+            (KosWindowSlot.BorderShadow, Clear(bg)),
+            (KosWindowSlot.Separator, border),
+            (KosWindowSlot.SeparatorHovered, mark with { W = 0.65f }),
+            (KosWindowSlot.SeparatorActive, mark),
+            (KosWindowSlot.ScrollbarBg, Surface(light ? 0.92f : 0.06f) with { W = 0.53f }),
+            (KosWindowSlot.ScrollbarGrab, Toward(a, 0.58f)),
+            (KosWindowSlot.ScrollbarGrabHovered, Toward(a, 0.42f)),
+            (KosWindowSlot.ScrollbarGrabActive, Toward(a, 0.25f)),
+            (KosWindowSlot.ResizeGrip, mark with { W = 0.20f }),
+            (KosWindowSlot.ResizeGripHovered, mark with { W = 0.60f }),
+            (KosWindowSlot.ResizeGripActive, mark with { W = 0.90f }),
+            (KosWindowSlot.TableHeaderBg, Surface(light ? 0.88f : 0.16f)),
+            (KosWindowSlot.TableBorderStrong, border),
+            (KosWindowSlot.TableBorderLight, border with { W = border.W * 0.5f }),
+            (KosWindowSlot.TableRowBgAlt, ink with { W = 0.04f }),
+            (KosWindowSlot.PlotLines, mark),
+            (KosWindowSlot.PlotLinesHovered, Mix(mark, ink, 0.3f) with { W = 1 }),
+            (KosWindowSlot.PlotHistogram, mark),
+            (KosWindowSlot.PlotHistogramHovered, Mix(mark, ink, 0.3f) with { W = 1 }),
+            (KosWindowSlot.NavHighlight, mark),
+        ];
+        return new KosWindowPalette(bg, ink, colors, Derive(accent, bg, ink), Flair(accent, bg, ink)!.Value);
+    }
+
+    /// <summary>Hue (0..1), saturation and lightness of the RGB part.</summary>
+    public static (float H, float S, float L) ToHsl(Vector4 c)
+    {
+        float max = MathF.Max(c.X, MathF.Max(c.Y, c.Z)), min = MathF.Min(c.X, MathF.Min(c.Y, c.Z));
+        var l = (max + min) / 2;
+        var d = max - min;
+        if (d < 1e-6f) return (0, 0, l);
+        var s = l > 0.5f ? d / (2 - max - min) : d / (max + min);
+        var h = max == c.X ? (c.Y - c.Z) / d + (c.Y < c.Z ? 6 : 0) : max == c.Y ? (c.Z - c.X) / d + 2 : (c.X - c.Y) / d + 4;
+        return (h / 6, s, l);
+    }
+
+    /// <summary>An opaque colour from hue (0..1), saturation and lightness.</summary>
+    public static Vector4 FromHsl(float h, float s, float l)
+    {
+        if (s <= 0) return new(l, l, l, 1);
+        var q = l < 0.5f ? l * (1 + s) : l + s - l * s;
+        var p = 2 * l - q;
+        return new(Channel(p, q, h + 1f / 3), Channel(p, q, h), Channel(p, q, h - 1f / 3), 1);
+
+        static float Channel(float p, float q, float t)
+        {
+            if (t < 0) t += 1;
+            if (t > 1) t -= 1;
+            return t < 1f / 6 ? p + (q - p) * 6 * t : t < 0.5f ? q : t < 2f / 3 ? p + (q - p) * (2f / 3 - t) * 6 : p;
+        }
+    }
+
     private static float Lin(float c) => c <= 0.04045f ? c / 12.92f : MathF.Pow((c + 0.055f) / 1.055f, 2.4f);
 }
+
+/// <summary>Window-level style colours, used only by the opt-in whole-window palette. Names match <c>ImGuiCol</c>.</summary>
+internal enum KosWindowSlot
+{
+    WindowBg, ChildBg, PopupBg, MenuBarBg,
+    TitleBg, TitleBgActive, TitleBgCollapsed,
+    Text, TextDisabled, TextSelectedBg,
+    Border, BorderShadow, Separator, SeparatorHovered, SeparatorActive,
+    ScrollbarBg, ScrollbarGrab, ScrollbarGrabHovered, ScrollbarGrabActive,
+    ResizeGrip, ResizeGripHovered, ResizeGripActive,
+    TableHeaderBg, TableBorderStrong, TableBorderLight, TableRowBgAlt,
+    PlotLines, PlotLinesHovered, PlotHistogram, PlotHistogramHovered,
+    NavHighlight,
+}
+
+/// <summary>Everything the whole-window mode pushes: window colours, the component slots and flair over the new surfaces.</summary>
+/// <param name="Bg">The new window background, opaque (the pushed WindowBg keeps the user's alpha).</param>
+/// <param name="Text">The new text colour.</param>
+internal sealed record KosWindowPalette(
+    Vector4 Bg, Vector4 Text, (KosWindowSlot Slot, Vector4 Color)[] Window, (KosSlot Slot, Vector4 Color)[] Components, KosFlair Flair);

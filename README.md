@@ -30,14 +30,20 @@ optional window presets (among them **KosMos**, after the K'os Mos profile site)
   is the signature look, taken from the profile site's stylesheet: crimson controls, foxfire-gold checkmarks and section
   tags, a crimson-to-gold line along the top of each card, night-blue card fills, a glow on the primary button, and
   6 px frame rounding.
+- **`KosTheme.PushWindow(accent)`** (opt-in): the same preset applied to the **whole window**: background, title bar,
+  text, borders, separators, scrollbars, popups and table colours all come from the accent, plus softer window, child,
+  popup and frame rounding. It has to be pushed before ImGui begins the window, so the host calls it in `PreDraw()` and
+  disposes the scope in `PostDraw()` (snippet below). The window stays light or dark like the user's theme and keeps its
+  background alpha; Dalamud style still pushes nothing.
 - **`KosGallery.Draw()`**: every component in every state and every preset, for the in-game visual check. The host plugin
   calls it from its own debug section.
 
 ### What it is not meant to do
 
-- Replace the user's theme: a preset changes only `Button*`, `Tab*`, `Header*`, `CheckMark`, `SliderGrab*` and `FrameBg*`
-  (and, for KosMos only, frame/grab/tab rounding), never `WindowBg` or `Text`, and only inside the window that pushes it.
-  KosMos's night card fill is drawn by `Kos.Card` itself, and only on a dark theme.
+- Replace the user's theme unasked: by default a preset changes only `Button*`, `Tab*`, `Header*`, `CheckMark`,
+  `SliderGrab*` and `FrameBg*` (and, for KosMos only, frame/grab/tab rounding), never `WindowBg` or `Text`, and only
+  inside the window that pushes it. The whole-window palette is a separate call a plugin offers as a setting, off by
+  default. KosMos's night card fill is drawn by `Kos.Card` itself, and only on a dark theme.
 - Touch the game: no hooks, signatures, `ClientStructs`, IPC or game state. Pure UI.
 - Ship fonts, textures, a window base class or a navigation framework.
 - Register commands. Each plugin carries its own copy, so two plugins registering the same command would collide.
@@ -52,6 +58,12 @@ Preset colours are derived from the live `WindowBg` and `Text` of the user's sty
 mixed 54–86% toward the window background, the header family is a mid grey (`Text` mixed 60% toward `WindowBg`) at
 alpha 0.31 / 0.75 / 0.90, and checkmarks and slider grabs use the accent (darkened toward the text colour on a light
 theme). The derivation is a pure function (`KosColor.Derive`), re-run only when the accent or the theme changes.
+
+The whole-window palette (`KosColor.Window`) keeps the accent's hue at low saturation for the surfaces (KosMos uses the
+profile site's night blue instead, so its windows aren't red-brown), picks light or dark surfaces to match the user's
+theme, tints the text slightly toward the same hue, and then derives the component slots and flair again over the new
+background and text. Inside a whole-window scope, `KosTheme.Push` for the same accent pushes nothing, so a window that
+calls both doesn't push every colour twice.
 
 ## Using it in a plugin
 
@@ -68,6 +80,26 @@ In the plugin csproj (the SDK's default glob would otherwise also compile `KosLi
 </ItemGroup>
 ```
 
+To offer the whole-window palette, push it around the window instead of inside `Draw()`:
+
+```csharp
+private KosTheme.Scope? windowTheme;
+
+public override void PreDraw()
+{
+    windowTheme?.Dispose();
+    windowTheme = config.WholeWindowTheme ? KosTheme.PushWindow(config.Accent) : null;
+}
+
+public override void PostDraw()
+{
+    windowTheme?.Dispose();
+    windowTheme = null;
+}
+```
+
+Dalamud's window host calls `PostDraw` whenever it called `PreDraw`, so the push stays balanced even if `Draw` throws.
+
 Every `actions/checkout` step that builds the plugin needs `with: submodules: true`. Clone with
 `git clone --recurse-submodules`, and run `git submodule update --init` after a pull that moves the pin.
 
@@ -81,7 +113,7 @@ type is `internal`. `KosAccent` values are saved as numbers, so they are pinned 
 dotnet test tests/KosLib.Tests/KosLib.Tests.csproj -c Release
 ```
 
-44 xUnit checks on the pure colour code (`src/KosColor.cs`, compiled without Dalamud). Every preset is checked over
+88 xUnit checks on the pure colour code (`src/KosColor.cs`, compiled without Dalamud). Every preset is checked over
 Dalamud Standard and ImGui's stock light style:
 
 - Dalamud style (and an unknown value) derives an empty list and no flair, so it pushes and draws nothing extra.
@@ -91,6 +123,10 @@ Dalamud Standard and ImGui's stock light style:
 - Checkmarks and slider grabs keep at least 3:1 against every frame state.
 - Every slot is derived exactly once, and none is `WindowBg` or `Text`.
 - KosMos uses the site's crimson, foxfire gold and tag gold.
+- The whole-window palette: every window slot exactly once, light or dark like the user's theme, the user's background
+  alpha kept; text at 12:1 or more on the window and 7:1 on popups, menu bars, title bars, table headers and striped
+  rows; 4.5:1 for disabled text, the active title bar and selected text; and every control, mark, section-tag and
+  primary-button check above repeated over the new background and text.
 - The contrast and compositing maths match WCAG reference points.
 
 The ImGui-drawing parts (`Kos.cs`, `KosWidgets.cs`, `KosTheme.cs`, `KosGallery.cs`) can't run outside the game. They
@@ -101,6 +137,8 @@ are checked by building an adopting plugin, and visually through the gallery in 
 - Not verified in game yet: the look and the gallery have only been built and unit-tested, not seen in a live client.
 - A table inside a card should be safe, because ImGui tables split the draw list with their own splitter instance
   (read in `goatcorp/gc-imgui` 1.88). The gallery has an opt-in checkbox to confirm it in game; until then, keep tables out of cards.
+- The whole-window palette has only been seen as numbers: the gallery's section 04 previews it inside a framed child,
+  and a plugin's setting applies it to the real window.
 - Contrast is guaranteed for the two tested themes. A custom Style Editor theme feeds its own `WindowBg` and `Text`
   into the same mix, which usually keeps contrast but isn't checked at run time.
 - A KosLib fix reaches a plugin only when that plugin moves its submodule pin.
@@ -111,8 +149,8 @@ are checked by building an adopting plugin, and visually through the gallery in 
 |---|---|
 | `src/Kos.cs` | `Card`, `Badge` |
 | `src/KosWidgets.cs` | `Section`, `Segmented`, `KeyValue`, `Callout`, `Dot`, `Pips`, `IconButton`, `PrimaryButton`, `HelpMarker`, `EmptyState`, `Mono` |
-| `src/KosColor.cs` | `KosAccent`, `KosFlair`, colour maths, preset and flair derivation (pure) |
-| `src/KosTheme.cs` | `KosTheme.Push` (and the active `Flair`), `Label`, the slot → `ImGuiCol` map |
+| `src/KosColor.cs` | `KosAccent`, `KosFlair`, colour maths, preset, flair and whole-window derivation (pure) |
+| `src/KosTheme.cs` | `KosTheme.Push`, `KosTheme.PushWindow` (and the active `Flair`), `Label`, the slot → `ImGuiCol` maps |
 | `src/KosGallery.cs` | The in-game gallery |
 | `tests/KosLib.Tests/` | xUnit tests for `KosColor.cs` |
 | `plan.md` | Design plan and milestones |

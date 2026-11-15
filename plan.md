@@ -13,6 +13,7 @@ Status (2026-11-15, second pass): **M0, M1 and M3 pushed (StripDeathroll14 `c379
 | 3 | Adoption | StripDeathroll14 only, for now |
 | 4 | Presets | 5 accents (Teal, Violet, Amber, Crimson, Ocean) plus Dalamud style |
 | 5 | Go-ahead | Full plan approved. Built through a local commit in StripDeathroll14; its push and release come after the in-game check |
+| 7 | Whole-window theming | "Incorporate theming of the whole window as an option we can explore in our library" (2026-11-15). Built as `KosTheme.PushWindow`, opt-in per plugin setting, off by default; our own colour scheme, derived from the existing accents |
 | 6 | Next pass | "Push it and progress to M2 and further, let us tweak the look and style", taking inspiration from other plugins and the KosMos profile site. This overrides §1.7's two-plugin rule for the M2 set. The look became a 7th preset, **KosMos** (value 6), so Dalamud style stays the default and pushes nothing |
 
 ### What KosMos takes from the profile site (`priestkos/kosmos`, `assets/style.css`)
@@ -28,6 +29,8 @@ Status (2026-11-15, second pass): **M0, M1 and M3 pushed (StripDeathroll14 `c379
 | Active nav chapter: a gold outline pill | `Kos.Segmented` outlines the selected segment in tag gold |
 
 From other plugins (survey in the dalamud-plugin skill): Henchman's `Underlings` call sites show `Segmented`, `Banner`, `Dot` and `Card`, which shaped `Segmented`, `Callout` and `Dot`. GatherBuddy Reborn's RebornMaterial (one seed colour, state layers) is the model for deriving every state from one accent. Neither is a dependency.
+
+**Exception to §1.1/§1.2 on decision 7:** `KosTheme.PushWindow(accent)` replaces `WindowBg`, `Text` and the other window-level colours for the whole window, pushed in `PreDraw` and popped in `PostDraw` (Dalamud's `WindowHost` calls them as a pair). It is a separate call behind a plugin setting that defaults to off, so the default stays "the theme stays in charge". Its own rules: the window keeps the user's light/dark choice and background alpha; text holds 12:1 on the window, 7:1 on panels and 4.5:1 for disabled text, the active title bar and selection; every component check is repeated over the new surfaces (88 tests in total, measured 2026-11-15). The gallery's section 04 previews it inside a framed child.
 
 **Exceptions to §1 this pass made, on decision 6:** KosMos pushes `FrameRounding`/`GrabRounding`/`TabRounding` (6 px scaled), the only style vars a preset touches. `Kos.Card` draws its own night fill under KosMos on a dark theme. The light-theme branch drops that fill, and the tests check that the fill only ever raises text contrast. Section tags use `UiBuilder.MonoFontHandle`, Dalamud's own font: no font is built or shipped, so §3's "no custom fonts" still holds.
 

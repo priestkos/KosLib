@@ -1,8 +1,10 @@
 #nullable enable
 using System;
+using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using Dalamud.Interface.Colors;
+using Dalamud.Interface.Utility;
 using Dalamud.Interface.Utility.Raii;
 
 namespace KosLib;
@@ -48,6 +50,51 @@ internal static class KosGallery
             if (!bar) continue;
             using (var t = ImRaii.TabItem("Tab one")) if (t) ImGui.TextDisabled("Tab one body.");
             using (var t = ImRaii.TabItem("Tab two")) if (t) ImGui.TextDisabled("Tab two body.");
+        }
+
+        WholeWindow();
+    }
+
+    /// <summary>
+    /// The opt-in whole-window palette for the preview preset, shown inside a framed child. Mid-window the WindowBg
+    /// push can't repaint the host, so the child takes the palette's window colour as its own background.
+    /// </summary>
+    private static void WholeWindow()
+    {
+        Kos.Section("Whole window (opt-in)", "04");
+        if (preview == KosAccent.Dalamud)
+        {
+            ImGui.TextDisabled("Dalamud style has no whole-window palette: pick another preview preset.");
+            return;
+        }
+
+        using var theme = KosTheme.PushWindow(preview);
+        var windowBg = ImGui.GetStyle().Colors[(int)ImGuiCol.WindowBg] with { W = 1 };
+        using var bg = ImRaii.PushColor(ImGuiCol.ChildBg, windowBg);
+        using var child = ImRaii.Child("##koswindow", new Vector2(-1, 190 * ImGuiHelpers.GlobalScale), true);
+        if (!child) return;
+        ImGui.TextUnformatted($"{KosTheme.Label(preview)}: background, text, borders and title colours all come from the accent.");
+        ImGui.TextDisabled("Disabled text. The real window also keeps your background alpha.");
+        Kos.PrimaryButton(FontAwesomeIcon.Play, "Primary");
+        ImGui.SameLine();
+        ImGui.Button("Button");
+        ImGui.SameLine();
+        ImGui.Checkbox("Check##win", ref check);
+        ImGui.SameLine();
+        ImGui.SetNextItemWidth(120);
+        ImGui.SliderFloat("Slider##win", ref slider, 0, 1);
+        ImGui.Separator();
+        Kos.Card("wincard", null, () => Kos.KeyValue("Card", "on the whole-window palette"));
+        using var table = ImRaii.Table("##wintable", 2, ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerH);
+        if (!table) return;
+        ImGui.TableSetupColumn("Name");
+        ImGui.TableSetupColumn("Value");
+        ImGui.TableHeadersRow();
+        for (var i = 1; i <= 3; i++)
+        {
+            ImGui.TableNextRow();
+            ImGui.TableNextColumn(); ImGui.TextUnformatted($"Row {i}");
+            ImGui.TableNextColumn(); ImGui.TextUnformatted((i * 111).ToString());
         }
     }
 
