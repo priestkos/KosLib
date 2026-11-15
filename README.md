@@ -118,7 +118,8 @@ type is `internal`. `KosAccent` values are saved as numbers, so they are pinned 
 dotnet test tests/KosLib.Tests/KosLib.Tests.csproj -c Release
 ```
 
-132 xUnit checks on the pure colour code (every whole-window check runs for both the KosLib and the MaterialKos look) (`src/KosColor.cs`, compiled without Dalamud). Every preset is checked over
+132 xUnit checks on the pure colour code (`src/KosColor.cs` and `src/MaterialKos.cs`, compiled without Dalamud); every
+whole-window check runs for both the KosLib and the MaterialKos look. Every preset is checked over
 Dalamud Standard and ImGui's stock light style:
 
 - Dalamud style (and an unknown value) derives an empty list and no flair, so it pushes and draws nothing extra.
@@ -159,7 +160,7 @@ are checked by building an adopting plugin, and visually through the gallery in 
 | `src/MaterialKosWidgets.cs` | M3 button, switch and filter chip |
 | `src/KosTheme.cs` | `KosTheme.Push`, `KosTheme.PushWindow` (and the active `Flair`), `Label`, the slot → `ImGuiCol` maps |
 | `src/KosGallery.cs` | The in-game gallery |
-| `tests/KosLib.Tests/` | xUnit tests for `KosColor.cs` |
+| `tests/KosLib.Tests/` | xUnit tests for `KosColor.cs` and `MaterialKos.cs` |
 | `plan.md` | Design plan and milestones |
 
 ## Licence
