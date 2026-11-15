@@ -36,6 +36,23 @@ public class KosWindowTests
     private static Dictionary<KosWindowSlot, Vector4> Win(KosWindowPalette p) => p.Window.ToDictionary(x => x.Slot, x => x.Color);
 
     [Fact]
+    public void MaterialKosMosTakesTheProfileSiteNightBlueAndGold()
+    {
+        float Gap(float a, float b) => MathF.Abs((a - b + 540) % 360 - 180);
+        var night = MaterialKos.ToLch(KosColor.NightCard with { W = 1 }).H;
+        var gold = MaterialKos.ToLch(KosColor.FoxfireGold).H;
+        var crimson = MaterialKos.ToLch(KosColor.Crimson).H;
+        foreach (var light in new[] { false, true })
+        {
+            var s = MaterialKos.Scheme(KosAccent.KosMos, light)!;
+            foreach (var surface in new[] { s.Surface, s.SurfaceContainer, s.SurfaceContainerHighest, s.OutlineVariant })
+                Assert.True(Gap(MaterialKos.ToLch(surface).H, night) < 20, $"light={light} surface {surface} is not night blue");
+            Assert.True(Gap(MaterialKos.ToLch(s.Tertiary).H, gold) < 12, $"light={light} tertiary {s.Tertiary} is not gold");
+            Assert.True(Gap(MaterialKos.ToLch(s.Primary).H, crimson) < 12, $"light={light} primary {s.Primary} is not crimson");
+        }
+    }
+
+    [Fact]
     public void DalamudStyleHasNoWindowPalette()
     {
         foreach (var (_, bg, text) in Themes)

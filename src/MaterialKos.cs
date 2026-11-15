@@ -24,19 +24,23 @@ internal static partial class MaterialKos
 
     /// <summary>
     /// The M3 "tonal spot" scheme seeded from <paramref name="accent"/>'s hue; null for Dalamud style or an unknown
-    /// value. Tertiary sits 60° round the hue (KosMos: crimson seeds a gold tertiary).
+    /// value. Tertiary sits 60° round the hue; KosMos takes the profile site's gold tertiary and night-blue neutrals.
     /// </summary>
     public static MaterialScheme? Scheme(KosAccent accent, bool light)
     {
         if (accent == KosAccent.Dalamud || !Enum.IsDefined(accent)) return null;
         var hue = ToLch(KosColor.Accent(accent)).H;
-        var third = (hue + 60) % 360;
+        // KosMos follows the profile site: night-blue neutrals and a foxfire-gold tertiary, crimson stays primary.
+        var kosmos = accent == KosAccent.KosMos;
+        var third = kosmos ? ToLch(KosColor.FoxfireGold).H : (hue + 60) % 360;
+        var n = kosmos ? ToLch(KosColor.NightCard with { W = 1 }).H : hue;
+        var (nc, vc) = kosmos ? (8f, 12f) : (6f, 10f);
         Vector4 R(float h, float chroma, float dark, float lightTone) => Tone(h, chroma, light ? lightTone : dark);
         return new MaterialScheme(light,
             R(hue, 48, 80, 40), R(hue, 48, 20, 100), R(hue, 48, 30, 90), R(hue, 48, 90, 10),
             R(hue, 20, 30, 90), R(hue, 20, 90, 10), R(third, 32, 80, 40),
-            R(hue, 6, 6, 98), R(hue, 6, 10, 96), R(hue, 6, 12, 94), R(hue, 6, 17, 92), R(hue, 6, 22, 90),
-            R(hue, 6, 90, 10), R(hue, 10, 80, 30), R(hue, 10, 60, 50), R(hue, 10, 30, 80));
+            R(n, nc, 6, 98), R(n, nc, 10, 96), R(n, nc, 12, 94), R(n, nc, 17, 92), R(n, nc, 22, 90),
+            R(n, nc, 90, 10), R(n, vc, 80, 30), R(n, vc, 60, 50), R(n, vc, 30, 80));
     }
 
     /// <summary>
