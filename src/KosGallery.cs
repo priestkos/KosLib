@@ -64,7 +64,7 @@ internal static class KosGallery
         {
             using var id = ImRaii.PushId((int)accent);
             using var colors = KosTheme.Push(accent);
-            ImGui.TextUnformatted(KosTheme.Label(accent));
+            ImGui.TextUnformatted(accent == KosAccent.Dalamud ? "Dalamud style (pushes nothing, so this row shows the host window's own look)" : KosTheme.Label(accent));
             ImGui.Button("Button");
             ImGui.SameLine();
             ImGui.Checkbox("Check", ref check);
