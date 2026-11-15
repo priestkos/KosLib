@@ -14,6 +14,7 @@ Status (2026-11-15, second pass): **M0, M1 and M3 pushed (StripDeathroll14 `c379
 | 4 | Presets | 5 accents (Teal, Violet, Amber, Crimson, Ocean) plus Dalamud style |
 | 5 | Go-ahead | Full plan approved. Built through a local commit in StripDeathroll14; its push and release come after the in-game check |
 | 7 | Whole-window theming | "Incorporate theming of the whole window as an option we can explore in our library" (2026-11-15). Built as `KosTheme.PushWindow`, opt-in per plugin setting, off by default; our own colour scheme, derived from the existing accents |
+| 8 | MaterialKos | "incorporating their style into a MaterialKos library of some sort in our repo" (2026-11-15), after the Material 3 look of the Reborn plugins. Built inside KosLib (no new submodule for adopters) from Google's public M3 colour system, our own code: `PushWindow(accent, material: true)` plus M3 button/switch/chip. Same contrast tests as decision 7 (132 total). Not yet seen in game |
 | 6 | Next pass | "Push it and progress to M2 and further, let us tweak the look and style", taking inspiration from other plugins and the KosMos profile site. This overrides §1.7's two-plugin rule for the M2 set. The look became a 7th preset, **KosMos** (value 6), so Dalamud style stays the default and pushes nothing |
 
 ### What KosMos takes from the profile site (`priestkos/kosmos`, `assets/style.css`)

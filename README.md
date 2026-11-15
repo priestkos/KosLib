@@ -35,6 +35,11 @@ optional window presets (among them **KosMos**, after the K'os Mos profile site)
   popup and frame rounding. It has to be pushed before ImGui begins the window, so the host calls it in `PreDraw()` and
   disposes the scope in `PostDraw()` (snippet below). The window stays light or dark like the user's theme and keeps its
   background alpha; Dalamud style still pushes nothing.
+- **MaterialKos** (opt-in): a Material Design 3 look from the same accent. `KosTheme.PushWindow(accent, material: true)`
+  colours the window with M3 tonal roles (surfaces, containers, outline, state layers) and rounder windows, light or dark
+  like the user's theme. `MaterialKos.Button` (filled, tonal, outlined, text), `MaterialKos.Switch` and `MaterialKos.Chip`
+  are the M3 controls; they take their colours from whatever is pushed, so they also work under a plain accent or
+  Dalamud style. Tonal palettes use CIELAB LCh rather than M3's HCT, so hues can drift slightly from Google's tools.
 - **`KosGallery.Draw()`**: every component in every state and every preset, for the in-game visual check. The host plugin
   calls it from its own debug section.
 
@@ -113,7 +118,7 @@ type is `internal`. `KosAccent` values are saved as numbers, so they are pinned 
 dotnet test tests/KosLib.Tests/KosLib.Tests.csproj -c Release
 ```
 
-88 xUnit checks on the pure colour code (`src/KosColor.cs`, compiled without Dalamud). Every preset is checked over
+132 xUnit checks on the pure colour code (every whole-window check runs for both the KosLib and the MaterialKos look) (`src/KosColor.cs`, compiled without Dalamud). Every preset is checked over
 Dalamud Standard and ImGui's stock light style:
 
 - Dalamud style (and an unknown value) derives an empty list and no flair, so it pushes and draws nothing extra.
@@ -150,6 +155,8 @@ are checked by building an adopting plugin, and visually through the gallery in 
 | `src/Kos.cs` | `Card`, `Badge` |
 | `src/KosWidgets.cs` | `Section`, `Segmented`, `KeyValue`, `Callout`, `Dot`, `Pips`, `IconButton`, `PrimaryButton`, `HelpMarker`, `EmptyState`, `Mono` |
 | `src/KosColor.cs` | `KosAccent`, `KosFlair`, colour maths, preset, flair and whole-window derivation (pure) |
+| `src/MaterialKos.cs` | M3 tonal scheme and whole-window palette, LCh colour maths (pure) |
+| `src/MaterialKosWidgets.cs` | M3 button, switch and filter chip |
 | `src/KosTheme.cs` | `KosTheme.Push`, `KosTheme.PushWindow` (and the active `Flair`), `Label`, the slot → `ImGuiCol` maps |
 | `src/KosGallery.cs` | The in-game gallery |
 | `tests/KosLib.Tests/` | xUnit tests for `KosColor.cs` |
