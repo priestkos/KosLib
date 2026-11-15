@@ -17,6 +17,7 @@ internal static class KosGallery
     private static bool check = true;
     private static float slider = 0.4f;
     private static int segment;
+    private static bool material, chip = true;
     private static KosAccent preview = KosAccent.KosMos;
 
     public static void Draw()
@@ -62,13 +63,14 @@ internal static class KosGallery
     private static void WholeWindow()
     {
         Kos.Section("Whole window (opt-in)", "04");
+        MaterialKos.Switch("MaterialKos (Material 3 colours from the same accent)", ref material);
         if (preview == KosAccent.Dalamud)
         {
             ImGui.TextDisabled("Dalamud style has no whole-window palette: pick another preview preset.");
             return;
         }
 
-        using var theme = KosTheme.PushWindow(preview);
+        using var theme = KosTheme.PushWindow(preview, material);
         var windowBg = ImGui.GetStyle().Colors[(int)ImGuiCol.WindowBg] with { W = 1 };
         using var bg = ImRaii.PushColor(ImGuiCol.ChildBg, windowBg);
         using var child = ImRaii.Child("##koswindow", new Vector2(-1, 190 * ImGuiHelpers.GlobalScale), true);
@@ -83,6 +85,7 @@ internal static class KosGallery
         ImGui.SameLine();
         ImGui.SetNextItemWidth(120);
         ImGui.SliderFloat("Slider##win", ref slider, 0, 1);
+        MaterialRow("win");
         ImGui.Separator();
         Kos.Card("wincard", null, () => Kos.KeyValue("Card", "on the whole-window palette"));
         using var table = ImRaii.Table("##wintable", 2, ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerH);
@@ -96,6 +99,19 @@ internal static class KosGallery
             ImGui.TableNextColumn(); ImGui.TextUnformatted($"Row {i}");
             ImGui.TableNextColumn(); ImGui.TextUnformatted((i * 111).ToString());
         }
+    }
+
+    /// <summary>MaterialKos's own controls, in whatever colours are pushed around them.</summary>
+    private static void MaterialRow(string id)
+    {
+        foreach (var kind in Enum.GetValues<MaterialButton>())
+        {
+            MaterialKos.Button($"{kind}##{id}", kind);
+            ImGui.SameLine();
+        }
+        MaterialKos.Switch($"Switch##{id}", ref check);
+        ImGui.SameLine();
+        MaterialKos.Chip($"Chip##{id}", ref chip);
     }
 
     private static void Components()
@@ -127,6 +143,7 @@ internal static class KosGallery
         Kos.IconButton(FontAwesomeIcon.Dice, "Icon button", "Tooltip shows even when disabled.");
         ImGui.SameLine();
         using (ImRaii.Disabled()) Kos.PrimaryButton(FontAwesomeIcon.Ban, "Disabled", "Disabled primary.");
+        MaterialRow("comp");
 
         Kos.Section("Cards", "02");
         Kos.Card("plain", null, () =>

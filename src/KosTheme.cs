@@ -19,6 +19,7 @@ internal static class KosTheme
     private static KosFlair? lastFlair;
 
     private static KosAccent winAccent;
+    private static bool winMaterial;
     private static Vector4 winBg, winText;
     private static KosWindowPalette? winLast;
 
@@ -71,8 +72,9 @@ internal static class KosTheme
     /// and the window rounding only take effect when they are pushed before ImGui begins the window. Dalamud's window
     /// host calls PostDraw whenever it called PreDraw, so the pair stays balanced even if Draw throws.
     /// Dalamud style pushes nothing. The window keeps the user's background alpha and light/dark choice.
+    /// <paramref name="material"/> = MaterialKos: M3 tonal colours from the same accent and rounder windows.
     /// </summary>
-    public static Scope PushWindow(KosAccent accent)
+    public static Scope PushWindow(KosAccent accent, bool material = false)
     {
         var previous = Flair;
         var previousWindow = windowAccent;
@@ -83,20 +85,21 @@ internal static class KosTheme
         var style = ImGui.GetStyle();
         var bg = style.Colors[(int)ImGuiCol.WindowBg];
         var text = style.Colors[(int)ImGuiCol.Text];
-        if (winLast is null || accent != winAccent || bg != winBg || text != winText) // derive once per change
-            (winAccent, winBg, winText, winLast) = (accent, bg, text, KosColor.Window(accent, bg, text));
+        if (winLast is null || accent != winAccent || material != winMaterial || bg != winBg || text != winText) // derive once per change
+            (winAccent, winMaterial, winBg, winText, winLast) =
+                (accent, material, bg, text, material ? MaterialKos.Window(accent, bg, text) : KosColor.Window(accent, bg, text));
         if (winLast is not { } p) return new Scope(colors, styles, previous, previousWindow);
 
         foreach (var (slot, color) in p.Window) colors.Push(WinCol(slot), color);
         foreach (var (slot, color) in p.Components) colors.Push(Col(slot), color);
         var s = ImGuiHelpers.GlobalScale;
         var frame = (p.Flair.Rounding ?? 5f) * s; // every var here is a float style var (a Vector2 one would assert)
-        styles.Push(ImGuiStyleVar.WindowRounding, 8f * s);
-        styles.Push(ImGuiStyleVar.ChildRounding, 6f * s);
-        styles.Push(ImGuiStyleVar.PopupRounding, 6f * s);
-        styles.Push(ImGuiStyleVar.ScrollbarRounding, 8f * s);
+        styles.Push(ImGuiStyleVar.WindowRounding, (material ? 12f : 8f) * s);
+        styles.Push(ImGuiStyleVar.ChildRounding, (material ? 12f : 6f) * s);
+        styles.Push(ImGuiStyleVar.PopupRounding, (material ? 8f : 6f) * s);
+        styles.Push(ImGuiStyleVar.ScrollbarRounding, (material ? 12f : 8f) * s);
         styles.Push(ImGuiStyleVar.FrameRounding, frame);
-        styles.Push(ImGuiStyleVar.GrabRounding, frame);
+        styles.Push(ImGuiStyleVar.GrabRounding, material ? 12f * s : frame); // M3 slider handles are capsules (ImGui clamps the radius)
         styles.Push(ImGuiStyleVar.TabRounding, frame);
         Flair = p.Flair;
         windowAccent = accent;

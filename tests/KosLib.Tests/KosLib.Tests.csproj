@@ -7,6 +7,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="..\..\src\KosColor.cs" Link="KosColor.cs" />
+    <Compile Include="..\..\src\MaterialKos.cs" Link="MaterialKos.cs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
