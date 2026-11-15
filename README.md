@@ -37,7 +37,7 @@ optional window presets (among them **KosMos**, after the K'os Mos profile site)
   background alpha; Dalamud style still pushes nothing.
 - **MaterialKos** (opt-in): a Material Design 3 look from the same accent. `KosTheme.PushWindow(accent, material: true)`
   colours the window with M3 tonal roles (surfaces, containers, outline, state layers) and rounder windows, light or dark
-  like the user's theme. `MaterialKos.Button` (filled, tonal, outlined, text), `MaterialKos.Switch` and `MaterialKos.Chip`
+  like the user's theme. `MaterialKos.Button` (filled, tonal, outlined, text; optional leading Font Awesome icon), `MaterialKos.Switch` and `MaterialKos.Chip`
   are the M3 controls, with two lively ones: `MaterialKos.GlowButton` (its edge catches a light that sits nearest the mouse
   and travels slowly round at rest; `MaterialKos.Motion = false` stops the travel) and `MaterialKos.Slide` (slide to
   confirm, for actions that must not happen by accident: drag the knob across, or hold Space/Enter on it for a second); they take their colours from whatever is pushed, so they also work under a plain accent or

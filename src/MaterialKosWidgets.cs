@@ -2,7 +2,9 @@
 using System;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface;
 using Dalamud.Interface.Utility;
+using Dalamud.Interface.Utility.Raii;
 
 namespace KosLib;
 
@@ -19,13 +21,21 @@ internal static partial class MaterialKos
 
     private static string Shown(string label) => label.Split("##")[0];
 
-    /// <summary>A pill-shaped M3 button; returns true when clicked. Use <c>"Label##id"</c> for repeated labels.</summary>
-    public static bool Button(string label, MaterialButton kind = MaterialButton.Filled)
+    /// <summary>
+    /// A pill-shaped M3 button, with an optional leading <paramref name="icon"/>; returns true when clicked.
+    /// Use <c>"Label##id"</c> for repeated labels.
+    /// </summary>
+    public static bool Button(string label, MaterialButton kind = MaterialButton.Filled, FontAwesomeIcon icon = FontAwesomeIcon.None)
     {
         var text = ImGui.CalcTextSize(Shown(label));
         var h = ImGui.GetFrameHeight();
         var padX = MathF.Round(h * 0.6f); // M3: 24 dp side padding on a 40 dp button
-        var size = new Vector2(text.X + 2 * padX, h);
+        var glyph = icon == FontAwesomeIcon.None ? "" : icon.ToIconString();
+        Vector2 iconSize = default;
+        if (glyph.Length > 0) using (ImRaii.PushFont(UiBuilder.IconFont)) iconSize = ImGui.CalcTextSize(glyph);
+        var gap = glyph.Length > 0 ? MathF.Round(h * 0.25f) : 0; // M3: 8 dp between icon and label
+        var lead = iconSize.X + gap;
+        var size = new Vector2(lead + text.X + 2 * padX, h);
         var min = ImGui.GetCursorScreenPos();
         var clicked = ImGui.InvisibleButton(label, size);
         var layer = ImGui.IsItemActive() ? Press : ImGui.IsItemHovered() ? Hover : 0;
@@ -43,7 +53,8 @@ internal static partial class MaterialKos
         if (fill.W > 0) draw.AddRectFilled(min, max, ImGui.GetColorU32(fill), r);
         if (layer > 0) draw.AddRectFilled(min, max, ImGui.GetColorU32(ink with { W = layer }), r);
         if (kind == MaterialButton.Outlined) draw.AddRect(min, max, ImGui.GetColorU32(ImGuiCol.Border), r, ImDrawFlags.None, ImGuiHelpers.GlobalScale);
-        draw.AddText(min + new Vector2(padX, (h - text.Y) / 2), ImGui.GetColorU32(ink), Shown(label));
+        if (glyph.Length > 0) using (ImRaii.PushFont(UiBuilder.IconFont)) draw.AddText(min + new Vector2(padX, (h - iconSize.Y) / 2), ImGui.GetColorU32(ink), glyph);
+        draw.AddText(min + new Vector2(padX + lead, (h - text.Y) / 2), ImGui.GetColorU32(ink), Shown(label));
         return clicked;
     }
 

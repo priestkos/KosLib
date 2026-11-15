@@ -110,6 +110,8 @@ internal static class KosGallery
             MaterialKos.Button($"{kind}##{id}", kind);
             ImGui.SameLine();
         }
+        MaterialKos.Button($"Icon##{id}", MaterialButton.Filled, FontAwesomeIcon.Play);
+        ImGui.SameLine();
         MaterialKos.Switch($"Switch##{id}", ref check);
         ImGui.SameLine();
         MaterialKos.Chip($"Chip##{id}", ref chip);
