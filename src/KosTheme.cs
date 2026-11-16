@@ -26,6 +26,9 @@ internal static class KosTheme
     /// <summary>The accent of the whole-window scope in force, or null outside one.</summary>
     private static KosAccent? windowAccent;
 
+    /// <summary>The blur tint of the frosted whole-window scope in force, or null outside one (see <see cref="Frost"/>).</summary>
+    private static Vector4? windowFrost;
+
     /// <summary>The drawn extras of the innermost pushed preset; null outside any push and under Dalamud style.</summary>
     public static KosFlair? Flair { get; private set; }
 
@@ -42,7 +45,7 @@ internal static class KosTheme
         var colors = new ImRaii.ColorDisposable();
         var styles = new ImRaii.StyleDisposable();
         if (accent != KosAccent.Dalamud && windowAccent == accent)
-            return new Scope(colors, styles, previous, windowAccent);
+            return new Scope(colors, styles, previous, windowAccent, windowFrost);
 
         Flair = null;
         if (accent != KosAccent.Dalamud)
@@ -63,7 +66,7 @@ internal static class KosTheme
             Flair = lastFlair;
         }
 
-        return new Scope(colors, styles, previous, windowAccent);
+        return new Scope(colors, styles, previous, windowAccent, windowFrost);
     }
 
     /// <summary>
@@ -73,14 +76,18 @@ internal static class KosTheme
     /// host calls PostDraw whenever it called PreDraw, so the pair stays balanced even if Draw throws.
     /// Dalamud style pushes nothing. The window keeps the user's background alpha and light/dark choice.
     /// <paramref name="material"/> = MaterialKos: M3 tonal colours from the same accent and rounder windows.
+    /// <paramref name="frosted"/> (opt-in) = frosted glass: the background is at most <see cref="KosColor.FrostMaxAlpha"/>
+    /// opaque, and <see cref="Frost"/>, called first thing in Draw(), blurs what is behind the window. Set the window's
+    /// <c>AllowBackgroundBlur = false</c> with it, or Dalamud's own blur runs underneath as well.
     /// </summary>
-    public static Scope PushWindow(KosAccent accent, bool material = false)
+    public static Scope PushWindow(KosAccent accent, bool material = false, bool frosted = false)
     {
         var previous = Flair;
         var previousWindow = windowAccent;
+        var previousFrost = windowFrost;
         var colors = new ImRaii.ColorDisposable();
         var styles = new ImRaii.StyleDisposable();
-        if (accent == KosAccent.Dalamud) return new Scope(colors, styles, previous, previousWindow);
+        if (accent == KosAccent.Dalamud) return new Scope(colors, styles, previous, previousWindow, previousFrost);
 
         var style = ImGui.GetStyle();
         var bg = style.Colors[(int)ImGuiCol.WindowBg];
@@ -88,9 +95,10 @@ internal static class KosTheme
         if (winLast is null || accent != winAccent || material != winMaterial || bg != winBg || text != winText) // derive once per change
             (winAccent, winMaterial, winBg, winText, winLast) =
                 (accent, material, bg, text, material ? MaterialKos.Window(accent, bg, text) : KosColor.Window(accent, bg, text));
-        if (winLast is not { } p) return new Scope(colors, styles, previous, previousWindow);
+        if (winLast is not { } p) return new Scope(colors, styles, previous, previousWindow, previousFrost);
 
-        foreach (var (slot, color) in p.Window) colors.Push(WinCol(slot), color);
+        foreach (var (slot, color) in p.Window)
+            colors.Push(WinCol(slot), frosted && slot == KosWindowSlot.WindowBg ? KosColor.Frosted(color) : color);
         foreach (var (slot, color) in p.Components) colors.Push(Col(slot), color);
         var s = ImGuiHelpers.GlobalScale;
         var frame = (p.Flair.Rounding ?? 5f) * s; // every var here is a float style var (a Vector2 one would assert)
@@ -103,12 +111,31 @@ internal static class KosTheme
         styles.Push(ImGuiStyleVar.TabRounding, frame);
         Flair = p.Flair;
         windowAccent = accent;
-        return new Scope(colors, styles, previous, previousWindow);
+        windowFrost = frosted ? p.Bg : null;
+        return new Scope(colors, styles, previous, previousWindow, previousFrost);
+    }
+
+    /// <summary>
+    /// Frosted glass behind the current window: call it first thing in Draw() of a window whose PreDraw pushed
+    /// <c>PushWindow(…, frosted: true)</c>; anywhere else it does nothing. It asks Dalamud's renderer for its blur-behind
+    /// (<see cref="ImGuiHelpers.PrependBlurBehind"/>, the one Dalamud's own windows use), tinted with the window's
+    /// colour, so KosLib creates and holds no GPU resources. The blur goes first in the window's draw list, so it sees
+    /// the game and every window drawn before this one. Skipped for a window popped out of the game window, where the
+    /// back buffer behind it is not the game's.
+    /// </summary>
+    public static void Frost()
+    {
+        if (windowFrost is not { } tint) return;
+        if (ImGui.GetWindowViewport().ID != ImGui.GetMainViewport().ID) return;
+        var min = ImGui.GetWindowPos();
+        ImGuiHelpers.PrependBlurBehind(ImGui.GetWindowDrawList(), min, min + ImGui.GetWindowSize(),
+            blurStrength: 6f, rounding: ImGui.GetStyle().WindowRounding, tintColor: tint with { W = 0.35f }, noiseOpacity: 0.05f);
     }
 
     /// <summary>Pops what <see cref="Push"/> or <see cref="PushWindow"/> pushed and puts the outer state back.</summary>
     /// <remarks>Disposing twice is harmless: the ImRaii disposables pop only what is still pushed.</remarks>
-    internal readonly struct Scope(ImRaii.ColorDisposable colors, ImRaii.StyleDisposable styles, KosFlair? previous, KosAccent? previousWindow)
+    internal readonly struct Scope(
+        ImRaii.ColorDisposable colors, ImRaii.StyleDisposable styles, KosFlair? previous, KosAccent? previousWindow, Vector4? previousFrost)
         : IDisposable
     {
         public void Dispose()
@@ -117,6 +144,7 @@ internal static class KosTheme
             colors.Dispose();
             Flair = previous;
             windowAccent = previousWindow;
+            windowFrost = previousFrost;
         }
     }
 

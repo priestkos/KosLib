@@ -85,6 +85,15 @@ internal static class KosColor
     public static readonly Vector4 TagGold = new(1f, 0.773f, 0.416f, 1);
     public static readonly Vector4 NightCard = new(0.031f, 0.043f, 0.071f, 0.96f);
 
+    /// <summary>
+    /// The most a frosted window's background covers. The blur needs the scene to show through, and text on the window
+    /// still has to read over a white or a black scene with no blur at all (the tests check both).
+    /// </summary>
+    public const float FrostMaxAlpha = 0.85f;
+
+    /// <summary>A frosted window's background: the same colour, at most <see cref="FrostMaxAlpha"/> opaque.</summary>
+    public static Vector4 Frosted(Vector4 windowBg) => windowBg with { W = MathF.Min(windowBg.W, FrostMaxAlpha) };
+
     /// <summary>A light theme is one whose window background is brighter than mid grey (so its text is dark).</summary>
     public static bool IsLight(Vector4 windowBg) => Luminance(windowBg) > 0.5f;
 

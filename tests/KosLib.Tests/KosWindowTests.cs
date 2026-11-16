@@ -110,6 +110,38 @@ public class KosWindowTests
 
     [Theory]
     [MemberData(nameof(Accents))]
+    public void FrostedTextStillReadsOverAWhiteOrABlackSceneWithNoBlur(KosAccent accent, bool material)
+    {
+        // The worst case for a see-through window: the blur and its tint are not counted, only the frosted background.
+        var white = new Vector4(1, 1, 1, 1);
+        var black = new Vector4(0, 0, 0, 1);
+        foreach (var (name, bg, text) in Themes)
+        {
+            var p = P(accent, material, bg with { W = 1 }, text);
+            var w = Win(p);
+            var frosted = KosColor.Frosted(w[KosWindowSlot.WindowBg]);
+            Assert.Equal(KosColor.FrostMaxAlpha, frosted.W);
+            Assert.Equal(w[KosWindowSlot.WindowBg] with { W = 0 }, frosted with { W = 0 });
+            foreach (var scene in new[] { white, black })
+            {
+                var under = KosColor.Over(frosted, scene);
+                var ratio = KosColor.Contrast(p.Text, under);
+                Assert.True(ratio >= 4.5f, $"{accent}{(material ? " M3" : "")} text, {name}, scene {scene.X}: {ratio:F2}:1");
+                var dim = KosColor.Contrast(w[KosWindowSlot.TextDisabled], under);
+                Assert.True(dim >= 3f, $"{accent}{(material ? " M3" : "")} disabled text, {name}, scene {scene.X}: {dim:F2}:1");
+            }
+        }
+    }
+
+    [Fact]
+    public void FrostedNeverMakesASeeThroughWindowMoreOpaque()
+    {
+        Assert.Equal(0.6f, KosColor.Frosted(new Vector4(0.1f, 0.1f, 0.1f, 0.6f)).W);
+        Assert.Equal(KosColor.FrostMaxAlpha, KosColor.Frosted(new Vector4(0.1f, 0.1f, 0.1f, 0.96f)).W);
+    }
+
+    [Theory]
+    [MemberData(nameof(Accents))]
     public void TitleSelectionAndDisabledTextKeep45To1(KosAccent accent, bool material)
     {
         foreach (var (name, bg, text) in Themes)

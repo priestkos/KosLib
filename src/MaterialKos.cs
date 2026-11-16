@@ -148,13 +148,15 @@ internal static partial class MaterialKos
     /// One frame of Slide's knob (0 home, 1 the far end; -1 means confirmed and waiting for the press to end). It follows
     /// <paramref name="drag"/> while the mouse holds it, creeps on (1 s end to end) while a key holds it, and springs
     /// home otherwise. Reaching the end confirms once: the knob stays there until the press ends, then goes home.
+    /// <paramref name="still"/> (reduced motion): no spring, the knob is simply home again. The key creep stays, because
+    /// it is the hold's progress, not decoration.
     /// </summary>
-    public static (float Knob, bool Confirmed) SlideStep(float knob, float dt, float? drag, bool keyHeld)
+    public static (float Knob, bool Confirmed) SlideStep(float knob, float dt, float? drag, bool keyHeld, bool still = false)
     {
         const float spring = 4; // ends per second on the way home
         var held = drag is not null || keyHeld;
-        if (knob < 0) return (held ? -1 : 1, false);
-        knob = Math.Clamp(drag ?? (keyHeld ? knob + dt : knob - dt * spring), 0, 1);
+        if (knob < 0) return (held ? -1 : still ? 0 : 1, false);
+        knob = Math.Clamp(drag ?? (keyHeld ? knob + dt : still ? 0 : knob - dt * spring), 0, 1);
         return knob >= 0.98f ? (-1, true) : (knob, false);
     }
 

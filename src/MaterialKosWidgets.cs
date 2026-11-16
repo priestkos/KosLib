@@ -127,7 +127,11 @@ internal static partial class MaterialKos
         return changed;
     }
 
-    /// <summary>Off: GlowButton's light rests instead of travelling round the edge when nobody points at it.</summary>
+    /// <summary>
+    /// Off: GlowButton's light rests instead of travelling round the edge when nobody points at it, and Slide's knob is
+    /// home again at once instead of springing back. A host sets it from Dalamud's Reduce motion each frame:
+    /// <c>MaterialKos.Motion = !pluginInterface.UiBuilder.ShouldUseReducedMotion;</c>
+    /// </summary>
     public static bool Motion { get; set; } = true;
 
     /// <summary>
@@ -203,7 +207,7 @@ internal static partial class MaterialKos
         var travel = size.X - h;
         if (ImGui.IsItemActivated()) store.SetFloat(id + 1, Math.Max(store.GetFloat(id), 0)); // where the knob was when grabbed
         float? drag = mouseHeld ? store.GetFloat(id + 1) + ImGui.GetMouseDragDelta(ImGuiMouseButton.Left, 0).X / travel : null;
-        var (knob, confirmed) = SlideStep(store.GetFloat(id), ImGui.GetIO().DeltaTime, drag, active && !mouseHeld);
+        var (knob, confirmed) = SlideStep(store.GetFloat(id), ImGui.GetIO().DeltaTime, drag, active && !mouseHeld, still: !Motion);
         store.SetFloat(id, knob);
         if (ImGui.IsItemHovered() && !active) ImGui.SetMouseCursor(ImGuiMouseCursor.ResizeEw);
 

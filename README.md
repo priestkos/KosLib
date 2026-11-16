@@ -35,13 +35,22 @@ optional window presets (among them **KosMos**, after the K'os Mos profile site)
   popup and frame rounding. It has to be pushed before ImGui begins the window, so the host calls it in `PreDraw()` and
   disposes the scope in `PostDraw()` (snippet below). The window stays light or dark like the user's theme and keeps its
   background alpha; Dalamud style still pushes nothing.
+- **Frosted glass** (opt-in): `KosTheme.PushWindow(accent, frosted: true)` in `PreDraw()` plus `KosTheme.Frost()` first
+  thing in `Draw()` blurs whatever is behind the window (the game and the windows drawn before it), tinted with the
+  window's colour. The blur is Dalamud's own (`ImGuiHelpers.PrependBlurBehind`, the one its windows use), so KosLib
+  creates and holds no GPU resources. The background is at most 85% opaque so the blur shows; set the window's
+  `AllowBackgroundBlur = false` with it, or Dalamud's own blur runs underneath too. A window popped out of the game
+  window gets no blur.
 - **MaterialKos** (opt-in): a Material Design 3 look from the same accent. `KosTheme.PushWindow(accent, material: true)`
   colours the window with M3 tonal roles (surfaces, containers, outline, state layers) and rounder windows, light or dark
   like the user's theme. `MaterialKos.Button` (filled, tonal, outlined, text; optional leading Font Awesome icon), `MaterialKos.Switch` and `MaterialKos.Chip`
   are the M3 controls, with two lively ones: `MaterialKos.GlowButton` (its edge catches a light that sits nearest the mouse
-  and travels slowly round at rest; `MaterialKos.Motion = false` stops the travel) and `MaterialKos.Slide` (slide to
+  and travels slowly round at rest) and `MaterialKos.Slide` (slide to
   confirm, for actions that must not happen by accident: drag the knob across, or hold Space/Enter on it for a second); they take their colours from whatever is pushed, so they also work under a plain accent or
   Dalamud style. Tonal palettes use CIELAB LCh rather than M3's HCT, so hues can drift slightly from Google's tools.
+  `MaterialKos.Motion = false` (reduced motion) stops the glow's travel and makes the slide's knob go home at once
+  instead of springing; a held key still creeps it across, because that is the hold's progress. Set it from Dalamud's
+  Reduce motion every frame: `MaterialKos.Motion = !pluginInterface.UiBuilder.ShouldUseReducedMotion;`
 - **`KosGallery.Draw()`**: every component in every state and every preset, for the in-game visual check. The host plugin
   calls it from its own debug section.
 
@@ -95,7 +104,14 @@ private KosTheme.Scope? windowTheme;
 public override void PreDraw()
 {
     windowTheme?.Dispose();
-    windowTheme = config.WholeWindowTheme ? KosTheme.PushWindow(config.Accent) : null;
+    AllowBackgroundBlur = !config.Frosted; // frosted: KosTheme.Frost() blurs instead of Dalamud's own pass
+    windowTheme = config.WholeWindowTheme ? KosTheme.PushWindow(config.Accent, frosted: config.Frosted) : null;
+}
+
+public override void Draw()
+{
+    KosTheme.Frost(); // does nothing unless the scope above is frosted
+    // ...
 }
 
 public override void PostDraw()
@@ -120,7 +136,7 @@ type is `internal`. `KosAccent` values are saved as numbers, so they are pinned 
 dotnet test tests/KosLib.Tests/KosLib.Tests.csproj -c Release
 ```
 
-135 xUnit checks on the pure colour and motion code (`src/KosColor.cs` and `src/MaterialKos.cs`, compiled without Dalamud); every
+149 xUnit checks on the pure colour and motion code (`src/KosColor.cs` and `src/MaterialKos.cs`, compiled without Dalamud); every
 whole-window check runs for both the KosLib and the MaterialKos look. Every preset is checked over
 Dalamud Standard and ImGui's stock light style:
 
@@ -135,6 +151,9 @@ Dalamud Standard and ImGui's stock light style:
   alpha kept; text at 12:1 or more on the window and 7:1 on popups, menu bars, title bars, table headers and striped
   rows; 4.5:1 for disabled text, the active title bar and selected text; and every control, mark, section-tag and
   primary-button check above repeated over the new background and text.
+- Frosted: the background never gets more opaque than the user's and never more than 85%, and text keeps 4.5:1 (disabled
+  text 3:1) over a white and over a black scene with no blur counted at all.
+- Reduced motion: the slide's knob is home at once on release, and a held key still confirms in about a second.
 - The contrast and compositing maths match WCAG reference points.
 
 The ImGui-drawing parts (`Kos.cs`, `KosWidgets.cs`, `KosTheme.cs`, `KosGallery.cs`) can't run outside the game. They
@@ -145,6 +164,8 @@ are checked by building an adopting plugin, and visually through the gallery in 
 - Not verified in game yet: the look and the gallery have only been built and unit-tested, not seen in a live client.
 - A table inside a card should be safe, because ImGui tables split the draw list with their own splitter instance
   (read in `goatcorp/gc-imgui` 1.88). The gallery has an opt-in checkbox to confirm it in game; until then, keep tables out of cards.
+- Frosted glass has not been seen in game. The blur and its look are Dalamud's renderer's; KosLib only asks for it and
+  tests the background's contrast over the worst scenes.
 - The whole-window palette has only been seen as numbers: the gallery's section 04 previews it inside a framed child,
   and a plugin's setting applies it to the real window.
 - Contrast is guaranteed for the two tested themes. A custom Style Editor theme feeds its own `WindowBg` and `Text`
