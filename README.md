@@ -17,7 +17,8 @@ optional window presets (among them **KosMos**, after the K'os Mos profile site)
 - **`Kos.Section(title, number?)`**: a section header, a drawn diamond, `01 / TITLE` in capitals and a rule to the
   right edge. It uses the monospaced font when the host sets `Kos.Mono = UiBuilder.MonoFontHandle`.
 - **`Kos.Segmented(id, ref index, options)`**: 2–4 joined toggle buttons for one choice, in place of a radio-button row.
-- **`Kos.KeyValue(label, value)`**: a read-out row, muted label on the left and the value right-aligned.
+- **`Kos.KeyValue(label, value, valueColor?)`**: a read-out row, muted label on the left and the value right-aligned
+  (in `valueColor` when given).
 - **`Kos.Callout(text, color)`**: wrapped text with a coloured bar down its left edge, for alerts and notes.
 - **`Kos.Dot(color)`** and **`Kos.Pips(filled, total, color)`**: drawn status marks (a draw-list overload of `Pips`
   serves custom widgets).
@@ -153,6 +154,8 @@ Dalamud Standard and ImGui's stock light style:
   primary-button check above repeated over the new background and text.
 - Frosted: the background never gets more opaque than the user's and never more than 85%, and text keeps 4.5:1 (disabled
   text 3:1) over a white and over a black scene with no blur counted at all.
+- Motion maths: the glow's light walks the pill's edge clockwise, and the slide confirms once at the end and springs
+  back when let go early.
 - Reduced motion: the slide's knob is home at once on release, and a held key still confirms in about a second.
 - The contrast and compositing maths match WCAG reference points.
 
@@ -178,10 +181,10 @@ are checked by building an adopting plugin, and visually through the gallery in 
 |---|---|
 | `src/Kos.cs` | `Card`, `Badge` |
 | `src/KosWidgets.cs` | `Section`, `Segmented`, `KeyValue`, `Callout`, `Dot`, `Pips`, `IconButton`, `PrimaryButton`, `HelpMarker`, `EmptyState`, `Mono` |
-| `src/KosColor.cs` | `KosAccent`, `KosFlair`, colour maths, preset, flair and whole-window derivation (pure) |
+| `src/KosColor.cs` | `KosAccent`, `KosFlair`, colour maths, preset, flair and whole-window derivation, the frosted background cap (pure) |
 | `src/MaterialKos.cs` | M3 tonal scheme and whole-window palette, LCh colour maths, the glow and slide motion maths (pure) |
-| `src/MaterialKosWidgets.cs` | M3 button, switch and filter chip |
-| `src/KosTheme.cs` | `KosTheme.Push`, `KosTheme.PushWindow` (and the active `Flair`), `Label`, the slot → `ImGuiCol` maps |
+| `src/MaterialKosWidgets.cs` | M3 `Button`, `Switch`, filter `Chip`, `GlowButton`, `Slide` and the `Motion` switch |
+| `src/KosTheme.cs` | `KosTheme.Push`, `KosTheme.PushWindow` (and the active `Flair`), `KosTheme.Frost`, `Label`, the slot → `ImGuiCol` maps |
 | `src/KosGallery.cs` | The in-game gallery |
 | `tests/KosLib.Tests/` | xUnit tests for `KosColor.cs` and `MaterialKos.cs` |
 | `plan.md` | Design plan and milestones |
