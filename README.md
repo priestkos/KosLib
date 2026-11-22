@@ -127,6 +127,14 @@ Dalamud's window host calls `PostDraw` whenever it called `PreDraw`, so the push
 Every `actions/checkout` step that builds the plugin needs `with: submodules: true`. Clone with
 `git clone --recurse-submodules`, and run `git submodule update --init` after a pull that moves the pin.
 
+**Keeping the pin current.** Add `.github/workflows/library-pins.yml` to the plugin (copy KosHome's and change
+`project` and `test-command`). Each hour it calls `.github/workflows/pin-bump.yml` here, which compares every
+`github.com/priestkos/*` submodule (KosLib, KosDraw, ...) with that library's `main`. When one has moved, and the
+library's own Tests run passed on that commit, it moves the pin, builds the plugin in Release, runs its tests, pushes
+the pin commit to `main` and starts the plugin's Build. If the build or tests fail, it opens one "Library pin bump
+blocked" issue instead and leaves those library commits alone until the library moves again. A pin bump doesn't cut
+a plugin release; the next real push ships it. The caller grants `contents`, `issues` and `actions: write`.
+
 The files spell out their own `using`s and `#nullable enable`, so they compile whether or not the plugin turns on
 `ImplicitUsings` or `Nullable`. `KosAccent` is public (a plugin's public configuration class stores it); every other
 type is `internal`. `KosAccent` values are saved as numbers, so they are pinned and only ever appended.
@@ -173,7 +181,8 @@ are checked by building an adopting plugin, and visually through the gallery in 
   and a plugin's setting applies it to the real window.
 - Contrast is guaranteed for the two tested themes. A custom Style Editor theme feeds its own `WindowBg` and `Text`
   into the same mix, which usually keeps contrast but isn't checked at run time.
-- A KosLib fix reaches a plugin only when that plugin moves its submodule pin.
+- A KosLib fix reaches a plugin only when that plugin moves its submodule pin. Plugins with `library-pins.yml` do
+  that within the hour if their build and tests pass. Players get it with the plugin's next release.
 
 ## Layout
 

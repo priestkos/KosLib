@@ -1,0 +1,174 @@
+name: Library pin bump
+
+# Reusable workflow for every plugin that source-includes a priestkos library as a git submodule (KosLib, KosDraw, any
+# later one). Called hourly by each consumer's .github/workflows/library-pins.yml, it:
+#   1. compares every submodule whose URL is github.com/priestkos/* with that library's main (cheap Ubuntu job);
+#   2. skips a library commit whose own Tests run has not passed yet (retried next hour), or one that already has an
+#      open "Library pin bump blocked" issue in the consumer;
+#   3. otherwise moves the pins, builds the plugin (Release) and runs its tests on Windows, then pushes the pin commit
+#      to main and dispatches the consumer's Build workflow so the new HEAD has a CI run of its own;
+#   4. on a build or test failure opens one issue naming the library commits, so the hourly retry stays quiet until the
+#      library moves on.
+# The push uses GITHUB_TOKEN, so it does not start the consumer's push-triggered Release: a pin bump alone never cuts a
+# plugin release; the next real push ships it.
+# Caller needs: permissions contents: write, issues: write, actions: write.
+
+on:
+  workflow_call:
+    inputs:
+      project:
+        description: Plugin csproj path, relative to the repo root
+        required: true
+        type: string
+      test-command:
+        description: PowerShell command that runs the plugin's tests and exits non-zero on failure
+        required: true
+        type: string
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: read
+      actions: read
+    outputs:
+      changes: ${{ steps.scan.outputs.changes }}
+    steps:
+      - uses: actions/checkout@v7 # gitlinks and .gitmodules are enough; no submodule checkout
+
+      - name: Compare each library pin with that library's main
+        id: scan
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          changes=""
+          blocked=$(gh issue list --state open --limit 200 --json title --jq '.[].title' | grep -i 'library pin bump blocked' || true)
+          while read -r key path; do
+            name=${key#submodule.}; name=${name%.path}
+            url=$(git config -f .gitmodules --get "submodule.$name.url")
+            lower=${url,,}
+            case "$lower" in *github.com/priestkos/*) ;; *) echo "$path: not a priestkos library, left alone"; continue ;; esac
+            slug=${lower#*github.com/}; slug=${slug%.git}
+            pinned=$(git ls-tree HEAD "$path" | awk '{print $3}')
+            latest=$(git ls-remote "$url" refs/heads/main | cut -f1)
+            if [ -z "$latest" ]; then echo "::error::cannot read main of $url"; exit 1; fi
+            if [ "$pinned" = "$latest" ]; then echo "$path: current at ${pinned:0:7}"; continue; fi
+            if grep -qiF "$path@${latest:0:7}" <<<"$blocked"; then
+              echo "::warning::$path: ${latest:0:7} has an open 'Library pin bump blocked' issue; waiting for the library to move"
+              continue
+            fi
+            # A library with a tests.yml must have a passed Tests run on that commit; none yet (just pushed, queued,
+            # running) or a failed one waits for a later hour. A library without tests.yml is not gated.
+            if gh api "repos/$slug/contents/.github/workflows/tests.yml" --silent 2>/dev/null; then
+              runs=$(gh run list -R "$slug" --commit "$latest" --workflow tests.yml --json status,conclusion \
+                       --jq '[.[] | "\(.status)/\(.conclusion)"] | join(" ")')
+              if ! grep -q 'completed/success' <<<"$runs"; then
+                echo "::warning::$path: ${latest:0:7} has no passed Tests run yet (${runs:-no run}); retrying next hour"
+                continue
+              fi
+            fi
+            echo "$path: ${pinned:0:7} -> ${latest:0:7}"
+            changes="$changes $path=$pinned=$latest"
+          done < <(git config -f .gitmodules --get-regexp '^submodule\..*\.path$' || true)
+          echo "changes=${changes# }" >> "$GITHUB_OUTPUT"
+
+  bump:
+    needs: check
+    if: needs.check.outputs.changes != ''
+    runs-on: windows-latest
+    permissions:
+      contents: write
+      issues: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      - name: Move the pins
+        id: move
+        shell: bash
+        env:
+          CHANGES: ${{ needs.check.outputs.changes }}
+        run: |
+          set -euo pipefail
+          : > "$RUNNER_TEMP/subject" ; : > "$RUNNER_TEMP/body" ; : > "$RUNNER_TEMP/title"
+          for change in $CHANGES; do
+            IFS='=' read -r path old new <<<"$change"
+            shallow=$(git -C "$path" rev-parse --is-shallow-repository)
+            if [ "$shallow" = true ]; then git -C "$path" fetch --quiet --no-tags --unshallow origin main
+            else git -C "$path" fetch --quiet --no-tags origin main; fi
+            git -C "$path" checkout --quiet "$new"
+            git add "$path"
+            printf '%s %s -> %s, ' "$path" "${old:0:7}" "${new:0:7}" >> "$RUNNER_TEMP/subject"
+            printf '%s@%s ' "$path" "${new:0:7}" >> "$RUNNER_TEMP/title"
+            { echo "$path ${old:0:7}..${new:0:7}:"
+              git -C "$path" log --oneline --no-decorate "$old..$new" 2>/dev/null | sed 's/^/  /' || echo "  (old pin is not an ancestor of main)"
+              echo; } >> "$RUNNER_TEMP/body"
+          done
+          git diff --cached --stat
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install the Dalamud development distribution
+        shell: pwsh
+        run: |
+          $dest = Join-Path $env:APPDATA 'XIVLauncher\addon\Hooks\dev'
+          New-Item -ItemType Directory -Force -Path $dest | Out-Null
+          Invoke-WebRequest -UseBasicParsing -Uri 'https://goatcorp.github.io/dalamud-distrib/latest.zip' -OutFile dalamud.zip
+          Expand-Archive -Path dalamud.zip -DestinationPath $dest -Force
+          Remove-Item dalamud.zip
+
+      - name: Build the plugin against the new pins
+        run: dotnet build "${{ inputs.project }}" -c Release
+
+      - name: Run the plugin's tests
+        shell: pwsh
+        run: ${{ inputs.test-command }}
+
+      - name: Commit and push the pins
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          subject=$(sed 's/, $//' "$RUNNER_TEMP/subject")
+          git commit --quiet -m "chore: library pins $subject" \
+            -m "Automatic pin bump (library-pins workflow): the plugin built in Release and its tests passed at these pins." \
+            -m "$(cat "$RUNNER_TEMP/body")"
+          if ! git push origin HEAD:main; then
+            # main moved while we built: replay the pin commit on top once; a real conflict fails the run.
+            git fetch --quiet origin main
+            git rebase origin/main
+            git push origin HEAD:main
+          fi
+          if gh workflow view build.yml >/dev/null 2>&1; then gh workflow run build.yml --ref main; fi
+
+      - name: Open an issue so the hourly retry waits for the library to move
+        if: failure() && steps.move.outcome == 'success'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="Library pin bump blocked: $(sed 's/ $//' "$RUNNER_TEMP/title")"
+          {
+            echo "The hourly library pin bump could not move these pins: the build or the tests failed."
+            echo
+            echo "Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo
+            echo '```'
+            cat "$RUNNER_TEMP/body"
+            echo '```'
+            echo
+            echo "Retries skip these library commits while this issue is open. Fix the plugin (and bump by hand) or fix the"
+            echo "library: a newer library commit is tried automatically. Close this issue to force a retry of the same commits."
+          } > "$RUNNER_TEMP/issue.md"
+          gh issue create --title "$title" --body-file "$RUNNER_TEMP/issue.md"
